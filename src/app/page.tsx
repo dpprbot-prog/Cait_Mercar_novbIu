@@ -14,6 +14,7 @@ export default function DashboardPage() {
     urgentOrders: 0,
     brigadeSize: 0,
     checkedInCount: 0,
+    brigadeMembers: [] as any[],
     sizAlerts: 0
   })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
@@ -111,9 +112,53 @@ export default function DashboardPage() {
               Подробнее →
             </a>
           </div>
-          <div className="table-wrap">
-            <p style={{fontSize:12, color:'var(--text-muted)', marginBottom:10}}>Всего в бригаде: {stats.brigadeSize} чел. Отметились: {stats.checkedInCount}.</p>
-            {stats.checkedInCount === 0 && <div style={{padding:20, textAlign:'center', color:'var(--text-muted)', fontSize:13}}>Сегодня 아직 никто не отметился</div>}
+          <div style={{padding: '0 0 16px 0'}}>
+            <p style={{fontSize:11, color:'var(--text-muted)', marginBottom:12, padding:'0 16px', textTransform:'uppercase', fontWeight:700, letterSpacing:0.5}}>
+              Всего: {stats.brigadeSize} · Отметились: {stats.checkedInCount}
+            </p>
+            <div style={{display:'flex', flexDirection:'column', gap:2}}>
+              {stats.brigadeMembers.length === 0 ? (
+                <div style={{padding:'20px 16px', textAlign:'center', color:'var(--text-muted)', fontSize:13}}>Бригада не назначена</div>
+              ) : (
+                stats.brigadeMembers.map(m => (
+                  <div key={m.id} style={{display:'flex', flexDirection:'column', padding:'10px 16px', borderBottom:'1px solid rgba(255,255,255,0.02)', transition:'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.01)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: m.hasCheckedIn ? 8 : 0}}>
+                      <div style={{display:'flex', alignItems:'center', gap:10}}>
+                        <div style={{width:30, height:30, borderRadius:8, background: m.user_color || 'var(--bg-elevated)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800}}>
+                          {m.initials}
+                        </div>
+                        <div>
+                          <div style={{fontSize:13, fontWeight:700, color: m.hasCheckedIn ? '#fff' : 'var(--text-muted)'}}>{m.name}</div>
+                          <div style={{fontSize:10, color:'var(--text-muted)'}}>{m.role}</div>
+                        </div>
+                      </div>
+                      
+                      {m.hasCheckedIn ? (
+                        <div style={{textAlign:'right'}}>
+                          <div style={{fontSize:14, fontWeight:900, color:'var(--green)'}}>{m.details.total} ч</div>
+                          <div style={{fontSize:10, color:'var(--text-muted)', fontWeight:600}}>ОТРАБОТАНО</div>
+                        </div>
+                      ) : (
+                        <div style={{fontSize:10, color:'rgba(255,255,255,0.1)', fontWeight:700}}>НЕ ОТМЕТИЛСЯ</div>
+                      )}
+                    </div>
+
+                    {m.hasCheckedIn && (
+                      <div style={{display:'flex', alignItems:'center', gap:16, background:'rgba(255,255,255,0.03)', padding:'6px 10px', borderRadius:6, marginTop:2}}>
+                        <div style={{display:'flex', alignItems:'center', gap:4}}>
+                          <Clock size={10} color="var(--accent)"/>
+                          <span style={{fontSize:11, color:'rgba(255,255,255,0.6)', fontWeight:600}}>{m.details.start} – {m.details.end}</span>
+                        </div>
+                        <div style={{display:'flex', alignItems:'center', gap:4}}>
+                          <div style={{width:4, height:4, borderRadius:'50%', background:'rgba(255,255,255,0.2)'}}></div>
+                          <span style={{fontSize:11, color:'rgba(255,255,255,0.4)'}}>Обед: {m.details.lunch} мин</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
 

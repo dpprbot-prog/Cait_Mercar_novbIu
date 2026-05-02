@@ -21,6 +21,7 @@ export interface WorkerProfile {
   clothing_size: string | null
   shoe_size: number | null
   is_blocked: number
+  is_approved: number
 }
 
 const SESSION_COOKIE = 'merkare_session'
@@ -33,11 +34,15 @@ function hashPassword(password: string) {
 
 export async function login(loginStr: string, passwordStr: string) {
   try {
-    const worker = db.prepare('SELECT id, password_hash, is_blocked FROM workers WHERE login = ?').get(loginStr) as { id: string, password_hash: string, is_blocked: number } | undefined
+    const worker = db.prepare('SELECT id, password_hash, is_blocked, is_approved FROM workers WHERE login = ?').get(loginStr) as { id: string, password_hash: string, is_blocked: number, is_approved: number } | undefined
     if (!worker) return { success: false, error: 'Пользователь не найден' }
     
     if (worker.is_blocked) {
       return { success: false, error: 'Ваш аккаунт заблокирован' }
+    }
+
+    if (!worker.is_approved) {
+      return { success: false, error: 'Ваш аккаунт ожидает подтверждения администратором' }
     }
 
     if (worker.password_hash !== hashPassword(passwordStr)) {
@@ -110,16 +115,28 @@ export async function register(data: {
 
     const h = hashPassword(data.passwordStr)
 
+    // ВАЖНО: Ровно 13 параметров для INSERT (role='Рабочий' и is_approved=0 прописаны текстом)
     db.prepare(`
       INSERT INTO workers (
-        id, login, password_hash, last_name, first_name, patronymic, name, role, initials, user_color, brigade_id, height, clothing_size, shoe_size
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Рабочий', ?, ?, ?, ?, ?, ?)
+        id, login, password_hash, last_name, first_name, patronymic, name, role, initials, user_color, brigade_id, height, clothing_size, shoe_size, is_approved
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 'Рабочий', ?, ?, ?, ?, ?, ?, 0)
     `).run(
-      id, data.login, h, data.last_name, data.first_name, data.patronymic || '', name, initials, user_color, data.brigade_id || null, data.height || null, data.clothing_size || null, data.shoe_size || null
+      id, 
+      data.login, 
+      h, 
+      data.last_name, 
+      data.first_name, 
+      data.patronymic || '', 
+      name, 
+      initials, 
+      user_color, 
+      data.brigade_id || null, 
+      data.height || null, 
+      data.clothing_size || null, 
+      data.shoe_size || null
     )
 
-    // Авто-логин после регистрации
-    return await login(data.login, data.passwordStr)
+    return { success: true, message: 'Заявка на регистрацию отправлена. Дождитесь одобрения администратором.' }
   } catch (error) {
     console.error('Register error:', error)
     return { success: false, error: 'Ошибка при регистрации' }
@@ -153,6 +170,12 @@ export async function getCurrentUser(): Promise<WorkerProfile | null> {
     const worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(session.worker_id) as WorkerProfile | undefined
     
     if (worker?.is_blocked) {
+      db.prepare('DELETE FROM sessions WHERE id = ?').run(token)
+      cookieStore.delete(SESSION_COOKIE)
+      return null
+    }
+
+    if (worker && !worker.is_approved) {
       db.prepare('DELETE FROM sessions WHERE id = ?').run(token)
       cookieStore.delete(SESSION_COOKIE)
       return null

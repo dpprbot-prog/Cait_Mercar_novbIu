@@ -5,6 +5,9 @@ import { revalidatePath } from 'next/cache'
 
 export interface WorkerSalaryData {
   id: string
+  last_name: string
+  first_name: string
+  patronymic: string | null
   name: string
   role: string
   hours: number
@@ -43,7 +46,7 @@ export async function getSalaryData(month: number, year: number): Promise<Brigad
     const potAmount = potsMap.has(b.id) ? potsMap.get(b.id) : b.pot_amount
 
     // 3. Get workers for this brigade
-    const workers = db.prepare('SELECT id, name, role, base_rate FROM workers WHERE brigade_id = ? ORDER BY name')
+    const workers = db.prepare('SELECT id, name, last_name, first_name, patronymic, role, base_rate FROM workers WHERE brigade_id = ? ORDER BY name')
                       .all(b.id) as any[]
     
     const workerSalaries: WorkerSalaryData[] = []
@@ -83,6 +86,9 @@ export async function getSalaryData(month: number, year: number): Promise<Brigad
       workerSalaries.push({
         id: w.id,
         name: w.name,
+        last_name: w.last_name,
+        first_name: w.first_name,
+        patronymic: w.patronymic,
         role: w.role,
         hours,
         baseRate: w.base_rate,

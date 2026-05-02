@@ -1,10 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { Search, Plus, Filter, Users, Edit, Trash2, Shield, Lock, Unlock, Check, X, AlertTriangle, Download, Eye, EyeOff, MapPin, Shirt, Footprints } from 'lucide-react'
 import AppLayout from '@/components/AppLayout'
-import { Users, Search, Ruler, Shirt, Footprints, Mail, Phone, MapPin, MoreHorizontal, Edit, Check, X, Trash, Download, Lock, Unlock, Filter, AlertTriangle } from 'lucide-react'
-import { getWorkers } from '@/actions/common'
-import { getBrigades } from '@/actions/tabel'
-import { updateWorkerAdmin, deleteWorker, toggleWorkerBlock } from '@/actions/admin'
+import { getWorkers, getBrigades } from '@/actions/common'
+import { deleteWorker, toggleWorkerBlock, updateWorkerAdmin, approveWorker } from '@/actions/admin'
+import Modal from '@/components/Modal'
 import { exportEmployeesExcel } from '@/actions/export'
 import { useAuth } from '@/components/AuthProvider'
 
@@ -20,19 +20,33 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState('all') // all, active, blocked
   const [loading, setLoading] = useState(true)
 
-  // Edit Modal State
-  const [editingWorker, setEditingWorker] = useState<any | null>(null)
-  const [deleteConfirmWorker, setDeleteConfirmWorker] = useState<{id:string, name:string} | null>(null)
-  const [editForm, setEditForm] = useState({
-    last_name: '',
-    first_name: '',
-    patronymic: '',
-    role: '',
-    brigade_id: '',
-    height: '',
-    clothing_size: '',
-    shoe_size: ''
+  const [showEdit, setShowEdit] = useState(false)
+  const [editingWorker, setEditingWorker] = useState<any>(null)
+  const [newPassword, setNewPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  
+  // Modal state
+  const [modal, setModal] = useState<{
+    isOpen: boolean,
+    title: string,
+    message: string,
+    type: 'danger' | 'info' | 'success' | 'warning',
+    onConfirm?: () => void,
+    showConfirm?: boolean
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info'
   })
+
+  const showAlert = (title: string, message: string, type: any = 'info') => {
+    setModal({ isOpen: true, title, message, type, showConfirm: false })
+  }
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void, type: any = 'warning') => {
+    setModal({ isOpen: true, title, message, type, onConfirm, showConfirm: true })
+  }
 
   useEffect(() => {
     refreshData()
@@ -47,80 +61,90 @@ export default function EmployeesPage() {
   }
 
   const handleEditClick = (w: any) => {
-    setEditingWorker(w)
-    setEditForm({
-      last_name: w.last_name || '',
-      first_name: w.first_name || '',
-      patronymic: w.patronymic || '',
-      role: w.role || '',
-      brigade_id: w.brigade_id || '',
-      height: w.height?.toString() || '',
-      clothing_size: w.clothing_size || '',
-      shoe_size: w.shoe_size?.toString() || ''
-    })
+    setEditingWorker({ ...w })
+    setNewPassword('')
+    setShowEdit(true)
   }
 
   const handleSave = async () => {
     if (!editingWorker) return
     const res = await updateWorkerAdmin(editingWorker.id, {
-      ...editForm,
-      height: editForm.height ? parseInt(editForm.height) : null,
-      brigade_id: editForm.brigade_id || null
+      ...editingWorker,
+      passwordStr: newPassword || undefined
     })
+
     if (res.success) {
-      setEditingWorker(null)
-      refreshData()
+      setWorkers(prev => prev.map(w => w.id === editingWorker.id ? { ...w, ...editingWorker } : w))
+      setShowEdit(false)
+      showAlert('Готово', 'Данные сотрудника успешно обновлены', 'success')
     } else {
-      alert(res.error)
+      showAlert('Ошибка', res.error || 'Не удалось обновить данные', 'danger')
     }
   }
 
-  const handleDelete = async () => {
-    if (!editingWorker || !confirm(`Удалить сотрудника ${editingWorker.name}?`)) return
-    const res = await deleteWorker(editingWorker.id)
-    if (res.success) {
-      setEditingWorker(null)
-      refreshData()
-    } else {
-      alert(res.error)
-    }
+  const handleDelete = async (id: string, name: string) => {
+    showConfirm(
+      'Удаление сотрудника',
+      `Вы действительно хотите навсегда удалить сотрудника ${name}? Все его записи в табеле и финансах будут стерты.`,
+      async () => {
+        const res = await deleteWorker(id)
+        if (res.success) {
+          setWorkers(prev => prev.filter(w => w.id !== id))
+        } else {
+          showAlert('Ошибка', res.error || 'Не удалось удалить', 'danger')
+        }
+      },
+      'danger'
+    )
   }
 
-  const confirmDeleteDirect = (id: string, name: string) => {
-    setDeleteConfirmWorker({ id, name })
-  }
-
-  const handleConfirmedDelete = async () => {
-    if (!deleteConfirmWorker) return
-    const res = await deleteWorker(deleteConfirmWorker.id)
+  const handleToggleBlock = async (worker: any) => {
+    const res = await toggleWorkerBlock(worker.id)
     if (res.success) {
-      setDeleteConfirmWorker(null)
-      refreshData()
+      setWorkers(prev => prev.map(w => w.id === worker.id ? { ...w, is_blocked: !w.is_blocked } : w))
     } else {
-      alert(res.error)
-    }
-  }
-
-  const handleToggleBlock = async (id: string) => {
-    const res = await toggleWorkerBlock(id)
-    if (res.success) {
-      refreshData()
-    } else {
-      alert(res.error)
+      showAlert('Ошибка', res.error || 'Не удалось изменить статус', 'danger')
     }
   }
 
   const handleExport = async () => {
     const res = await exportEmployeesExcel()
-    if (res.success) {
+    if (res.success && res.base64) {
+      const byteCharacters = atob(res.base64)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      
       const link = document.createElement('a')
-      link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${res.base64}`
+      link.href = url
       link.download = res.fileName
+      document.body.appendChild(link)
       link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     }
   }
 
-  const filtered = workers.filter(w => {
+  const handleApprove = async (id: string) => {
+    const res = await approveWorker(id, { 
+      role: 'Рабочий',
+      brigade_id: null 
+    })
+    if (res.success) {
+      refreshData()
+    } else {
+      showAlert('Ошибка', res.error || 'Не удалось одобрить', 'danger')
+    }
+  }
+
+  const pendingWorkers = workers.filter(w => !w.is_approved)
+  const approvedWorkers = workers.filter(w => w.is_approved)
+
+  const filtered = approvedWorkers.filter(w => {
     const matchesSearch = w.name.toLowerCase().includes(search.toLowerCase()) || (w.login && w.login.toLowerCase().includes(search.toLowerCase()))
     const matchesRole = !roleFilter || w.role === roleFilter
     const matchesBrigade = !brigadeFilter || w.brigade_id === brigadeFilter
@@ -128,14 +152,12 @@ export default function EmployeesPage() {
     return matchesSearch && matchesRole && matchesBrigade && matchesStatus
   })
 
-  // Специфические роли для проекта
   const roles = ['Админ', 'Мастер', 'Бригадир', 'Склад', 'Водитель', 'Бетонщик', 'Отделочник', 'Подсобник', 'Рабочий', 'Геодезист', 'Охрана']
 
   const stats = {
     total: workers.length,
     active: workers.filter(w=>!w.is_blocked).length,
-    blocked: workers.filter(w=>w.is_blocked).length,
-    byRole: workers.reduce((acc, w) => { acc[w.role] = (acc[w.role] || 0) + 1; return acc }, {} as any)
+    blocked: workers.filter(w=>w.is_blocked).length
   }
 
   return (
@@ -144,58 +166,88 @@ export default function EmployeesPage() {
         <h1 style={{color:'#fff', display:'flex', alignItems:'center', gap:10}}>
           <Users size={24} color="var(--accent)"/> Сотрудники
         </h1>
-        <div style={{position:'relative', width:'100%', maxWidth:350}}>
-          <Search size={16} style={{position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)'}}/>
-          <input 
-            placeholder="Поиск по имени или должности..." 
-            value={search} 
-            onChange={e => setSearch(e.target.value)}
-            style={{
-              width:'100%', background:'var(--bg-surface)', border:'1px solid var(--border)', 
-              borderRadius:10, padding:'10px 14px 10px 40px', color:'#fff', outline:'none'
-            }}
-          />
+      </div>
+
+      {/* Statistics Cards */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16, marginBottom:24}}>
+        <div style={{background:'var(--bg-surface)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(255,255,255,0.05)', borderLeft:'4px solid var(--accent)', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', position:'relative', overflow:'hidden'}}>
+           <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Users size={80} color="var(--accent)"/></div>
+           <div style={{fontSize:11, color:'var(--text-muted)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8}}>ВСЕГО В БАЗЕ</div>
+           <div style={{fontSize:36, fontWeight:900, color:'#fff', lineHeight:1, display:'flex', alignItems:'center', gap:12}}>
+             {stats.total}
+           </div>
+           <div style={{fontSize:11, color:'rgba(255,255,255,0.3)', marginTop:8}}>Зарегистрировано пользователей</div>
+        </div>
+
+        <div style={{background:'var(--bg-surface)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(34,197,94,0.1)', borderLeft:'4px solid var(--green)', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', position:'relative', overflow:'hidden'}}>
+           <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Check size={80} color="var(--green)"/></div>
+           <div style={{fontSize:11, color:'var(--green)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8, opacity:0.7}}>АКТИВНЫЕ</div>
+           <div style={{fontSize:36, fontWeight:900, color:'var(--green)', lineHeight:1, display:'flex', alignItems:'center', gap:12}}>
+             {stats.active}
+           </div>
+           <div style={{fontSize:11, color:'rgba(34,197,94,0.3)', marginTop:8}}>Имеют доступ к системе</div>
+        </div>
+
+        <div style={{background:'var(--bg-surface)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(239,68,68,0.1)', borderLeft:'4px solid var(--red)', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', position:'relative', overflow:'hidden'}}>
+           <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Lock size={80} color="var(--red)"/></div>
+           <div style={{fontSize:11, color:'var(--red)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8, opacity:0.7}}>ЗАБЛОКИРОВАНО</div>
+           <div style={{fontSize:36, fontWeight:900, color:'var(--red)', lineHeight:1, display:'flex', alignItems:'center', gap:12}}>
+             {stats.blocked}
+           </div>
+           <div style={{fontSize:11, color:'rgba(239,68,68,0.3)', marginTop:8}}>Доступ временно ограничен</div>
+        </div>
+
+        <div style={{background:'var(--bg-elevated)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(255,255,255,0.05)', borderLeft:'4px solid var(--yellow)', cursor:'pointer', transition:'all 0.2s', position:'relative', overflow:'hidden'}} onClick={handleExport} className="hover-scale">
+           <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Download size={80} color="var(--yellow)"/></div>
+           <div style={{fontSize:11, color:'var(--yellow)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8, opacity:0.7}}>ОТЧЕТНОСТЬ</div>
+           <div style={{fontSize:22, fontWeight:900, color:'var(--yellow)', display:'flex', alignItems:'center', gap:10}}>
+             <Download size={20}/> EXCEL
+           </div>
+           <div style={{fontSize:11, color:'rgba(234,179,8,0.3)', marginTop:12}}>Выгрузить список в таблицу</div>
         </div>
       </div>
 
-      {/* ── Stats Row ── */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:12, marginBottom:20}}>
-        <div style={{background:'var(--bg-surface)', padding:12, borderRadius:12, border:'1px solid var(--border)'}}>
-           <div style={{fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Всего</div>
-           <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{stats.total}</div>
+      {isAdmin && pendingWorkers.length > 0 && (
+        <div style={{background:'rgba(234,179,8,0.05)', border:'1px solid rgba(234,179,8,0.2)', borderRadius:16, padding:20, marginBottom:24}}>
+          <h2 style={{fontSize:16, fontWeight:800, color:'var(--yellow)', marginBottom:16, display:'flex', alignItems:'center', gap:8}}>
+            <AlertTriangle size={18}/> НОВЫЕ ЗАЯВКИ ({pendingWorkers.length})
+          </h2>
+          <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(300px, 1fr))', gap:12}}>
+            {pendingWorkers.map(w => (
+              <div key={w.id} style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:12, padding:16, display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+                <div style={{display:'flex', alignItems:'center', gap:12}}>
+                  <div style={{width:40, height:40, borderRadius:10, background:w.user_color, color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontWeight:900, fontSize:14}}>
+                    {w.initials}
+                  </div>
+                  <div>
+                    <div style={{fontWeight:700, color:'#fff'}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
+                    <div style={{fontSize:11, color:'var(--text-muted)'}}>Логин: {w.login}</div>
+                  </div>
+                </div>
+                <div style={{display:'flex', gap:8}}>
+                  <button onClick={() => handleDelete(w.id, w.name)} style={{padding:'8px', borderRadius:8, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', color:'var(--red)', cursor:'pointer'}}>
+                    <X size={16}/>
+                  </button>
+                  <button onClick={() => handleApprove(w.id)} style={{padding:'8px 16px', borderRadius:8, background:'var(--green)', border:'none', color:'#fff', fontWeight:700, fontSize:12, cursor:'pointer', display:'flex', alignItems:'center', gap:6}}>
+                    <Check size={16}/> ОДОБРИТЬ
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-        <div style={{background:'var(--bg-surface)', padding:12, borderRadius:12, border:'1px solid var(--border)'}}>
-           <div style={{fontSize:11, color:'var(--green)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Активны</div>
-           <div style={{fontSize:24, fontWeight:900, color:'var(--green)'}}>{stats.active}</div>
-        </div>
-        <div style={{background:'var(--bg-surface)', padding:12, borderRadius:12, border:'1px solid var(--border)'}}>
-           <div style={{fontSize:11, color:'var(--red)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Блок</div>
-           <div style={{fontSize:24, fontWeight:900, color:'var(--red)'}}>{stats.blocked}</div>
-        </div>
-        <div style={{background:'var(--bg-surface)', padding:12, borderRadius:12, border:'1px solid var(--border)', cursor:'pointer'}} onClick={handleExport}>
-           <div style={{fontSize:11, color:'var(--accent)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Экспорт</div>
-           <div style={{fontSize:18, fontWeight:900, color:'var(--accent)', display:'flex', alignItems:'center', gap:8}}><Download size={18}/> Excel</div>
-        </div>
-      </div>
+      )}
 
-      {/* ── Filters Bar ── */}
       <div style={{background:'var(--bg-surface)', padding:16, borderRadius:12, border:'1px solid var(--border)', marginBottom:20, display:'flex', flexWrap:'wrap', gap:12, alignItems:'center'}}>
-        <div style={{position:'relative', flex:2, minWidth:200}}>
-          <Search size={14} style={{position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)'}}/>
-          <input 
-            placeholder="Поиск по ФИО или логину..." 
-            value={search} 
-            onChange={e => setSearch(e.target.value)}
-            style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'8px 12px 8px 36px', color:'#fff', outline:'none', fontSize:13}}
-          />
-        </div>
+        <input 
+          placeholder="Поиск..." 
+          value={search} 
+          onChange={e => setSearch(e.target.value)}
+          style={{flex:2, minWidth:200, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'8px 12px', color:'#fff', outline:'none', fontSize:13}}
+        />
         <select value={roleFilter} onChange={e=>setRoleFilter(e.target.value)} style={{flex:1, minWidth:120, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'8px', color:'#fff', outline:'none', fontSize:13}}>
           <option value="">Все роли</option>
           {roles.map(r=><option key={r} value={r}>{r}</option>)}
-        </select>
-        <select value={brigadeFilter} onChange={e=>setBrigadeFilter(e.target.value)} style={{flex:1, minWidth:120, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'8px', color:'#fff', outline:'none', fontSize:13}}>
-          <option value="">Все бригады</option>
-          {brigades.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{flex:1, minWidth:120, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'8px', color:'#fff', outline:'none', fontSize:13}}>
           <option value="all">Любой статус</option>
@@ -204,181 +256,162 @@ export default function EmployeesPage() {
         </select>
       </div>
 
-      {/* ── Employees List (Table Style) ── */}
       <div style={{background:'var(--bg-surface)', borderRadius:12, border:'1px solid var(--border)', overflow:'hidden'}}>
-        {loading ? (
-          <div style={{padding:40, textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>Загрузка...</div>
-        ) : filtered.length === 0 ? (
-          <div style={{padding:40, textAlign:'center', color:'rgba(255,255,255,0.4)', fontSize:14}}>Сотрудники не найдены</div>
-        ) : (
-          <div style={{overflowX:'auto'}}>
-            <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
-              <thead>
-                <tr style={{background:'rgba(255,255,255,0.03)', borderBottom:'1px solid var(--border)'}}>
-                  <th style={{padding:'12px 16px', textAlign:'left', color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', fontSize:11}}>Сотрудник</th>
-                  <th style={{padding:'12px 16px', textAlign:'left', color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', fontSize:11}}>Роль</th>
-                  <th style={{padding:'12px 16px', textAlign:'left', color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', fontSize:11}}>Объект/Бригада</th>
-                  <th style={{padding:'12px 16px', textAlign:'left', color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', fontSize:11}}>Размеры</th>
-                  <th style={{padding:'12px 16px', textAlign:'center', color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', fontSize:11}}>Статус</th>
-                  <th style={{padding:'12px 16px', textAlign:'right', color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', fontSize:11}}>Действия</th>
+        {loading ? <div style={{padding:40, textAlign:'center'}}>Загрузка...</div> : (
+          <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
+            <thead>
+              <tr style={{background:'rgba(255,255,255,0.03)', borderBottom:'1px solid var(--border)'}}>
+                <th style={{padding:12, textAlign:'left'}}>Сотрудник</th>
+                <th style={{padding:12, textAlign:'left'}}>Роль</th>
+                <th style={{padding:12, textAlign:'center'}}>Статус</th>
+                <th style={{padding:12, textAlign:'right'}}>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(w => (
+                <tr key={w.id} style={{borderBottom:'1px solid var(--border)'}}>
+                  <td style={{padding:12}}>
+                    <div style={{fontWeight:700}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
+                    <div style={{fontSize:11, color:'rgba(255,255,255,0.4)'}}>{w.login}</div>
+                  </td>
+                  <td style={{padding:12}}>{w.role}</td>
+                  <td style={{padding:12, textAlign:'center'}}>
+                    <span className={`badge-pill ${w.is_blocked ? 'badge-red' : 'badge-green'}`} style={{fontSize:10}}>
+                      {w.is_blocked ? 'БЛОК' : 'АКТИВЕН'}
+                    </span>
+                  </td>
+                  <td style={{padding:'12px 16px', textAlign:'right'}}>
+                    <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
+                      <button 
+                        onClick={()=>handleEditClick(w)} 
+                        title="Редактировать"
+                        style={{width:32, height:32, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(59,130,246,0.1)', color:'#3b82f6', border:'1px solid rgba(59,130,246,0.2)', transition:'all 0.2s', cursor:'pointer'}}
+                        onMouseEnter={e => { e.currentTarget.style.background='#3b82f6'; e.currentTarget.style.color='#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='rgba(59,130,246,0.1)'; e.currentTarget.style.color='#3b82f6'; }}
+                      >
+                        <Edit size={14}/>
+                      </button>
+                      <button 
+                        onClick={()=>handleToggleBlock(w)}
+                        title={w.is_blocked ? "Разблокировать" : "Заблокировать"}
+                        style={{width:32, height:32, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', background:w.is_blocked ? 'rgba(34,197,94,0.1)' : 'rgba(234,179,8,0.1)', color:w.is_blocked ? 'var(--green)' : 'var(--yellow)', border:w.is_blocked ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(234,179,8,0.2)', transition:'all 0.2s', cursor:'pointer'}}
+                        onMouseEnter={e => { e.currentTarget.style.background = w.is_blocked ? 'var(--green)' : 'var(--yellow)'; e.currentTarget.style.color='#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = w.is_blocked ? 'rgba(34,197,94,0.1)' : 'rgba(234,179,8,0.1)'; e.currentTarget.style.color = w.is_blocked ? 'var(--green)' : 'var(--yellow)'; }}
+                      >
+                        {w.is_blocked ? <Unlock size={14}/> : <Lock size={14}/>}
+                      </button>
+                      <button 
+                        onClick={()=>handleDelete(w.id, w.name)}
+                        title="Удалить"
+                        style={{width:32, height:32, borderRadius:8, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(239,68,68,0.1)', color:'var(--red)', border:'1px solid rgba(239,68,68,0.2)', transition:'all 0.2s', cursor:'pointer'}}
+                        onMouseEnter={e => { e.currentTarget.style.background='var(--red)'; e.currentTarget.style.color='#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='rgba(239,68,68,0.1)'; e.currentTarget.style.color='var(--red)'; }}
+                      >
+                        <Trash2 size={14}/>
+                      </button>
+                    </div>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {filtered.map(w => (
-                  <tr key={w.id} style={{borderBottom:'1px solid var(--border)', transition:'background 0.2s', opacity: w.is_blocked ? 0.6 : 1}} onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.02)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-                    <td style={{padding:'12px 16px'}}>
-                      <div style={{display:'flex', alignItems:'center', gap:10}}>
-                        <div style={{width:32, height:32, borderRadius:8, background:w.user_color||'var(--accent)', color:'#fff', fontSize:12, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center'}}>
-                          {w.initials || w.name[0]}
-                        </div>
-                        <div>
-                          <div style={{fontWeight:700, color:'#fff'}}>{w.name}</div>
-                          <div style={{fontSize:11, color:'rgba(255,255,255,0.3)'}}>{w.login ? `${w.login}` : 'нет логина'}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td style={{padding:'12px 16px'}}>
-                      <span style={{padding:'4px 8px', borderRadius:6, background: w.user_color ? `${w.user_color}22` : 'rgba(255,255,255,0.05)', color:w.user_color||'var(--accent)', fontSize:11, fontWeight:800, textTransform:'uppercase', border:`1px solid ${w.user_color}33`}}>
-                        {w.role}
-                      </span>
-                    </td>
-                    <td style={{padding:'12px 16px', color:'rgba(255,255,255,0.6)'}}>
-                      <div style={{display:'flex', alignItems:'center', gap:6}}>
-                        <MapPin size={12} style={{flexShrink:0}}/>
-                        <span style={{whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:150}}>
-                          {w.brigade_id ? (brigades.find(b=>b.id===w.brigade_id)?.name || w.brigade_id) : '—'}
-                        </span>
-                      </div>
-                    </td>
-                    <td style={{padding:'12px 16px'}}>
-                      <div style={{display:'flex', gap:8, fontSize:11}}>
-                        <span style={{color:'rgba(255,255,255,0.4)'}}><Shirt size={10} style={{marginRight:2}}/>{w.clothing_size||'—'}</span>
-                        <span style={{color:'rgba(255,255,255,0.4)'}}><Footprints size={10} style={{marginRight:2}}/>{w.shoe_size||'—'}</span>
-                      </div>
-                    </td>
-                    <td style={{padding:'12px 16px', textAlign:'center'}}>
-                      {w.is_blocked ? (
-                        <div style={{display:'inline-flex', alignItems:'center', gap:4, color:'var(--red)', background:'rgba(239,68,68,0.1)', padding:'4px 8px', borderRadius:20, fontSize:10, fontWeight:700}}>
-                          <Lock size={10}/> БЛОК
-                        </div>
-                      ) : (
-                        <div style={{display:'inline-flex', alignItems:'center', gap:4, color:'var(--green)', background:'rgba(34,197,94,0.1)', padding:'4px 8px', borderRadius:20, fontSize:10, fontWeight:700}}>
-                          <Check size={10}/> РАБОТАЕТ
-                        </div>
-                      )}
-                    </td>
-                    <td style={{padding:'12px 16px', textAlign:'right'}}>
-                      <div style={{display:'flex', gap:6, justifyContent:'flex-end'}}>
-                        {isAdmin && (
-                          <>
-                            <button onClick={()=>handleEditClick(w)} style={{width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, color:'rgba(255,255,255,0.6)', cursor:'pointer'}}>
-                              <Edit size={14}/>
-                            </button>
-                            <button onClick={()=>handleToggleBlock(w.id)} style={{width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', background:w.is_blocked?'rgba(34,197,94,0.1)':'rgba(239,68,68,0.1)', border:w.is_blocked?'1px solid rgba(34,197,94,0.2)':'1px solid rgba(239,68,68,0.2)', borderRadius:6, color:w.is_blocked?'var(--green)':'var(--red)', cursor:'pointer'}}>
-                              {w.is_blocked ? <Unlock size={14}/> : <Lock size={14}/>}
-                            </button>
-                            <button onClick={() => confirmDeleteDirect(w.id, w.name)} style={{width:28, height:28, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(239,68,68,0.05)', border:'1px solid rgba(239,68,68,0.1)', borderRadius:6, color:'rgba(239,68,68,0.4)', cursor:'pointer'}}>
-                              <Trash size={14}/>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* Edit Modal */}
-      {editingWorker && (
-        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.8)', zIndex:999, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-          <div style={{width:'100%', maxWidth:500, background:'var(--bg-surface)', borderRadius:16, border:'1px solid var(--border)', overflow:'hidden', boxShadow:'0 20px 50px rgba(0,0,0,0.5)'}}>
-            <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-              <h2 style={{margin:0, fontSize:18, fontWeight:800, color:'#fff'}}>Редактирование сотрудника</h2>
-              <button onClick={() => setEditingWorker(null)} style={{background:'none', border:'none', color:'rgba(255,255,255,0.4)', cursor:'pointer'}}><X size={20}/></button>
-            </div>
+      {showEdit && (
+        <div style={{position:'fixed', inset:0, background:'rgba(0,0,0,0.85)', zIndex:999, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)'}}>
+          <div style={{background:'var(--bg-surface)', padding:24, borderRadius:20, width:'100%', maxWidth:500, border:'1px solid var(--border)', maxHeight:'90vh', overflowY:'auto'}}>
+            <h2 style={{color:'#fff', marginBottom:24, fontSize:20}}>Редактирование сотрудника</h2>
             
-            <div style={{padding:24, display:'flex', flexDirection:'column', gap:16}}>
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
-                <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', marginBottom:6}}>ФАМИЛИЯ</label>
-                  <input value={editForm.last_name} onChange={e=>setEditForm({...editForm, last_name:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, padding:10, color:'#fff', outline:'none'}}/>
-                </div>
-                <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', marginBottom:6}}>ИМЯ</label>
-                  <input value={editForm.first_name} onChange={e=>setEditForm({...editForm, first_name:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, padding:10, color:'#fff', outline:'none'}}/>
-                </div>
-              </div>
-
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12}}>
               <div>
-                <label style={{display:'block', fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', marginBottom:6}}>РОЛЬ</label>
-                <select value={editForm.role} onChange={e=>setEditForm({...editForm, role:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, padding:10, color:'#fff', outline:'none'}}>
-                  {roles.map(r=><option key={r} value={r}>{r}</option>)}
-                </select>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ФАМИЛИЯ</label>
+                <input value={editingWorker.last_name || ''} onChange={e=>setEditingWorker({...editingWorker, last_name:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
               </div>
-
               <div>
-                <label style={{display:'block', fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', marginBottom:6}}>БРИГАДА / ОБЪЕКТ</label>
-                <select value={editForm.brigade_id} onChange={e=>setEditForm({...editForm, brigade_id:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, padding:10, color:'#fff', outline:'none'}}>
-                  <option value="">Не назначена</option>
-                  {brigades.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ИМЯ</label>
+                <input value={editingWorker.first_name || ''} onChange={e=>setEditingWorker({...editingWorker, first_name:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
               </div>
+            </div>
 
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10}}>
-                <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', marginBottom:6}}>РОСТ</label>
-                  <input type="number" value={editForm.height} onChange={e=>setEditForm({...editForm, height:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, padding:10, color:'#fff', outline:'none'}}/>
-                </div>
-                <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', marginBottom:6}}>ОДЕЖДА</label>
-                  <input value={editForm.clothing_size} onChange={e=>setEditForm({...editForm, clothing_size:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, padding:10, color:'#fff', outline:'none'}}/>
-                </div>
-                <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'rgba(255,255,255,0.4)', marginBottom:6}}>ОБУВЬ</label>
-                  <input value={editForm.shoe_size} onChange={e=>setEditForm({...editForm, shoe_size:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, padding:10, color:'#fff', outline:'none'}}/>
-                </div>
-              </div>
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>РОЛЬ</label>
+              <select value={editingWorker.role || ''} onChange={e=>setEditingWorker({...editingWorker, role:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}>
+                {roles.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
 
-              <div style={{display:'flex', gap:12, marginTop:10}}>
-                <button onClick={() => setEditingWorker(null)} style={{flex:1, padding:'12px', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:10, color:'rgba(255,255,255,0.6)', fontWeight:700, cursor:'pointer'}}>
-                   ОТМЕНА
-                </button>
-                <button onClick={handleSave} style={{flex:2, padding:'12px', background:'var(--accent)', border:'none', borderRadius:10, color:'#fff', fontWeight:800, cursor:'pointer'}}>
-                   СОХРАНИТЬ
+            <div style={{marginBottom:12}}>
+              <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>БРИГАДА</label>
+              <select value={editingWorker.brigade_id || ''} onChange={e=>setEditingWorker({...editingWorker, brigade_id:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:12, borderRadius:12, color:'#fff', outline:'none'}}>
+                <option value="">Без бригады</option>
+                {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </div>
+
+            <div style={{marginBottom:16}}>
+              <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>НОВЫЙ ПАРОЛЬ (ОСТАВЬТЕ ПУСТЫМ, ЧТОБЫ НЕ МЕНЯТЬ)</label>
+              <div style={{position:'relative'}}>
+                <input 
+                  type={showPassword ? 'text' : 'password'}
+                  value={newPassword} 
+                  onChange={e => setNewPassword(e.target.value)}
+                  style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:12, borderRadius:12, color:'#fff', outline:'none'}}
+                  placeholder="••••••••"
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)', padding:4}}
+                >
+                  {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmWorker && (
-        <div style={{position:'fixed', top:0, left:0, right:0, bottom:0, background:'rgba(0,0,0,0.85)', backdropFilter:'blur(4px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20}}>
-          <div style={{width:'100%', maxWidth:400, background:'var(--bg-surface)', borderRadius:20, border:'1px solid var(--border)', padding:30, textAlign:'center', boxShadow:'0 25px 50px -12px rgba(0, 0, 0, 0.5)'}}>
-            <div style={{width:64, height:64, borderRadius:32, background:'rgba(239,68,68,0.1)', color:'var(--red)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px'}}>
-              <AlertTriangle size={32}/>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:12}}>
+              <div>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>РОСТ</label>
+                <input type="number" value={editingWorker.height || ''} onChange={e=>setEditingWorker({...editingWorker, height:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
+              </div>
+              <div>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ОДЕЖДА</label>
+                <input value={editingWorker.clothing_size || ''} onChange={e=>setEditingWorker({...editingWorker, clothing_size:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
+              </div>
+              <div>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ОБУВЬ</label>
+                <input value={editingWorker.shoe_size || ''} onChange={e=>setEditingWorker({...editingWorker, shoe_size:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
+              </div>
             </div>
-            <h2 style={{margin:0, fontSize:20, fontWeight:800, color:'#fff', marginBottom:12}}>Удалить сотрудника?</h2>
-            <p style={{margin:0, color:'rgba(255,255,255,0.5)', fontSize:14, lineHeight:1.6, marginBottom:30}}>
-              Вы собираетесь безвозвратно удалить <b>{deleteConfirmWorker.name}</b>. 
-              Все данные о сессиях этого пользователя будут стерты.
-            </p>
+
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:24}}>
+              <div>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ЛОГИН (@)</label>
+                <input value={editingWorker.login || ''} onChange={e=>setEditingWorker({...editingWorker, login:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
+              </div>
+              <div>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>НОВЫЙ ПАРОЛЬ</label>
+                <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Без изменений" style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
+              </div>
+            </div>
+
             <div style={{display:'flex', gap:12}}>
-              <button onClick={() => setDeleteConfirmWorker(null)} style={{flex:1, padding:'12px', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:12, color:'rgba(255,255,255,0.6)', fontWeight:700, cursor:'pointer'}}>
-                ОТМЕНА
-              </button>
-              <button onClick={handleConfirmedDelete} style={{flex:1, padding:'12px', background:'var(--red)', border:'none', borderRadius:12, color:'#fff', fontWeight:800, cursor:'pointer'}}>
-                УДАЛИТЬ
-              </button>
+              <button onClick={()=>setShowEdit(false)} style={{flex:1, padding:'12px', borderRadius:12, border:'1px solid var(--border)', background:'transparent', color:'#fff', fontWeight:600}}>Отмена</button>
+              <button onClick={handleSave} style={{flex:1, padding:'12px', borderRadius:12, border:'none', background:'var(--accent)', color:'#fff', fontWeight:700}}>Сохранить</button>
             </div>
           </div>
         </div>
       )}
+
+      <Modal 
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        onClose={() => setModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modal.onConfirm}
+        showConfirm={modal.showConfirm}
+      />
     </AppLayout>
   )
 }

@@ -30,6 +30,7 @@ function initDb() {
       clothing_size TEXT,
       shoe_size TEXT,
       is_blocked INTEGER DEFAULT 0,
+      is_approved INTEGER DEFAULT 0,
       FOREIGN KEY (brigade_id) REFERENCES brigades(id)
     );
 
@@ -56,7 +57,7 @@ function initDb() {
       lunch_min INTEGER DEFAULT 0,
       hours_total REAL DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (worker_id) REFERENCES workers(id)
+      FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS financial_records (
@@ -67,7 +68,7 @@ function initDb() {
       date TEXT NOT NULL,
       description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (worker_id) REFERENCES workers(id)
+      FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
     );
 
     CREATE TABLE IF NOT EXISTS brigade_pots (
@@ -167,14 +168,35 @@ function initDb() {
       address TEXT,
       phone TEXT
     );
+
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      worker_id TEXT NOT NULL,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      is_read INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS notification_settings (
+      worker_id TEXT PRIMARY KEY,
+      notify_siz INTEGER DEFAULT 1,
+      notify_supply INTEGER DEFAULT 1,
+      notify_admin_tasks INTEGER DEFAULT 1,
+      FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
+    );
   `)
 
   // Миграция: добавляем колонку is_blocked, если её нет
   try {
     db.prepare('ALTER TABLE workers ADD COLUMN is_blocked INTEGER DEFAULT 0').run()
-  } catch (e) {
-    // Колонку уже добавили ранее
-  }
+  } catch (e) {}
+
+  try {
+    db.prepare('ALTER TABLE workers ADD COLUMN is_approved INTEGER DEFAULT 1').run()
+  } catch (e) {}
 
   // Сидирование данных (Первичное заполнение для теста)
   const count = db.prepare('SELECT COUNT(*) as count FROM brigades').get() as { count: number }
@@ -199,7 +221,7 @@ function seedData() {
   insertObject.run('obj4', 'Административный')
   insertObject.run('obj5', 'Склад А')
 
-  const insertWorker = db.prepare('INSERT INTO workers (id, login, password_hash, last_name, first_name, patronymic, name, role, initials, user_color, brigade_id, base_rate, height, clothing_size, shoe_size) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+  const insertWorker = db.prepare('INSERT INTO workers (id, login, password_hash, last_name, first_name, patronymic, name, role, initials, user_color, brigade_id, base_rate, height, clothing_size, shoe_size, is_approved) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
   const hash = (pw:string) => pw // в реальности тут bcrypt, но для мока достаточно. Новая регистрация будет использовать нормальный алгоритм (например sha256).
 
   // Админ и Склад (Системные)

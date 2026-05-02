@@ -9,6 +9,7 @@ import {
 import { getTools, addTool, initiateToolTransfer, respondToolTransfer, sendToolToRepair, returnToolFromRepair, requestToolWriteOff, resolveToolWriteOff, ToolItem, ToolStatus, ToolCategory, AssigneeType } from '@/actions/tools'
 import { exportToolsExcel } from '@/actions/export'
 import { useAuth } from '@/components/AuthProvider'
+import Modal from '@/components/Modal'
 
 // ─────────────────────────────────────────────
 //  Types & Config
@@ -68,8 +69,6 @@ export default function ToolsPage() {
     import('@/actions/common').then(m => {
       m.getWorkers().then(res => setWorkersList(res.map((w:any) => w.name)))
       m.getObjects().then(setObjectsList)
-    })
-    import('@/actions/tabel').then(m => {
       m.getBrigades().then(res => setBrigadesList(res.map((b:any) => b.name)))
     })
   }, [])
@@ -94,6 +93,9 @@ export default function ToolsPage() {
   const [transferModal, setTransferModal] = useState<string|null>(null) // tool id
   const [repairModal, setRepairModal] = useState<string|null>(null)
   const [writeoffModal, setWriteoffModal] = useState<string|null>(null)
+  const [modal, setModal] = useState<{isOpen:boolean, title:string, message:string, type:'info'|'danger'|'warning', onConfirm?:()=>void}>({
+    isOpen: false, title: '', message: '', type: 'info'
+  })
 
   const [toast, setToast] = useState('')
   const showToast = (m:string) => { setToast(m); setTimeout(()=>setToast(''),3000) }
@@ -136,13 +138,22 @@ export default function ToolsPage() {
     refreshData()
   }
 
-  const handleDeleteTool = async (id: string, name: string) => {
-    if (!confirm(`Удалить инструмент "${name}"?`)) return
-    import('@/actions/tools').then(async m => {
-      const res = await m.deleteTool(id)
-      if (res.success) {
-        showToast('Удалено')
-        refreshData()
+  const handleDeleteTool = (id: string, name: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setModal({
+      isOpen: true,
+      title: 'Удаление инструмента',
+      message: `Вы уверены, что хотите окончательно удалить "${name}" из базы?`,
+      type: 'danger',
+      onConfirm: async () => {
+        import('@/actions/tools').then(async m => {
+          const res = await m.deleteTool(id)
+          if (res.success) {
+            showToast('Удалено')
+            refreshData()
+          }
+        })
+        setModal(p => ({ ...p, isOpen: false }))
       }
     })
   }
@@ -230,11 +241,23 @@ export default function ToolsPage() {
 
   const handleExport = async () => {
     const res = await exportToolsExcel()
-    if (res.success) {
+    if (res.success && res.base64) {
+      const byteCharacters = atob(res.base64)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      
       const link = document.createElement('a')
-      link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${res.base64}`
+      link.href = url
       link.download = res.fileName
+      document.body.appendChild(link)
       link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     }
   }
 
@@ -281,19 +304,41 @@ export default function ToolsPage() {
       {showAddForm && (
         <div style={{background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',padding:16,marginBottom:16}}>
           <h3 style={{fontSize:15,color:'#fff',marginBottom:12}}>Новый инструмент</h3>
-          <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:10,marginBottom:12}}>
-            <input placeholder="Название (напр. Перфоратор)" value={fName} onChange={e=>setFName(e.target.value)} style={{gridColumn:'span 2',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
-            <select value={fCat} onChange={e=>setFCat(e.target.value as ToolCategory)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}}>
-              {(Object.entries(CATEGORIES) as [ToolCategory,{label:string}][]).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-            </select>
-            <input placeholder="Инвентарный № (авто)" value={fInv} onChange={e=>setFInv(e.target.value)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
-            <select value={fCond} onChange={e=>setFCond(e.target.value as any)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}}>
-              <option value="good">Отличное</option>
-              <option value="fair">Удовлетворительное</option>
-              <option value="bad">Плохое</option>
-            </select>
-            <input placeholder="Кол-во" value={fQty} type="number" onChange={e=>setFQty(e.target.value)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
-          </div>
+            <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr) minmax(0,1fr)',gap:10,marginBottom:12}}>
+              <input placeholder="Название (напр. Перфоратор)" value={fName} onChange={e=>setFName(e.target.value)} style={{gridColumn:'span 2',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
+              
+              <div style={{position:'relative'}}>
+                <input 
+                  list="tool-cats"
+                  value={fCat} 
+                  onChange={e=>setFCat(e.target.value as ToolCategory)}
+                  placeholder="Категория..."
+                  style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}}
+                />
+                <datalist id="tool-cats">
+                  {(Object.entries(CATEGORIES) as [ToolCategory,{label:string}][]).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                </datalist>
+              </div>
+
+              <input placeholder="Инвентарный № (авто)" value={fInv} onChange={e=>setFInv(e.target.value)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
+              
+              <div style={{position:'relative'}}>
+                <input 
+                  list="tool-conds"
+                  value={fCond} 
+                  onChange={e=>setFCond(e.target.value as any)}
+                  placeholder="Состояние..."
+                  style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}}
+                />
+                <datalist id="tool-conds">
+                  <option value="good">Отличное</option>
+                  <option value="fair">Удовлетворительное</option>
+                  <option value="bad">Плохое</option>
+                </datalist>
+              </div>
+
+              <input placeholder="Кол-во" value={fQty} type="number" onChange={e=>setFQty(e.target.value)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
+            </div>
           <div style={{display:'flex',gap:10}}>
             <button onClick={()=>setShowAddForm(false)} style={{flex:1,padding:'8px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-muted)',fontWeight:600}}>Отмена</button>
             <button onClick={addToolClick} disabled={!fName.trim()} style={{flex:2,padding:'8px',background:'var(--accent)',border:'none',borderRadius:6,color:'#fff',fontWeight:700,opacity:!fName.trim()?0.5:1}}>Создать</button>
@@ -416,7 +461,15 @@ export default function ToolsPage() {
                 <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end',minWidth:130}}>
                   <div style={{display:'flex', gap:8, alignItems:'center'}}>
                     {isAdmin && (
-                       <button onClick={() => handleDeleteTool(tool.id, tool.name)} style={{background:'none', border:'none', color:'rgba(239,68,68,0.2)', cursor:'pointer'}} onMouseEnter={e=>e.currentTarget.style.color='var(--red)'} onMouseLeave={e=>e.currentTarget.style.color='rgba(239,68,68,0.2)'}><Trash size={14}/></button>
+                      <button 
+                        onClick={(e) => handleDeleteTool(tool.id, tool.name, e)} 
+                        title="Удалить инструмент"
+                        style={{width:28, height:28, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(239,68,68,0.1)', color:'var(--red)', border:'1px solid rgba(239,68,68,0.2)', transition:'all 0.2s', cursor:'pointer'}}
+                        onMouseEnter={e => { e.currentTarget.style.background='var(--red)'; e.currentTarget.style.color='#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='rgba(239,68,68,0.1)'; e.currentTarget.style.color='var(--red)'; }}
+                      >
+                        <Trash size={12}/>
+                      </button>
                     )}
                     <span className={`badge-pill ${STATUS_BADGE[tool.status]}`} style={{fontSize:10}}>{STATUS_LABEL[tool.status]}</span>
                   </div>
@@ -475,16 +528,34 @@ export default function ToolsPage() {
               <button onClick={()=>setTrToType('brigade')} style={{flex:1,padding:'8px',borderRadius:6,border:`1px solid ${trToType==='brigade'?'var(--accent)':'rgba(255,255,255,0.1)'}`,background:trToType==='brigade'?'var(--accent-dim)':'transparent',color:trToType==='brigade'?'var(--accent)':'var(--text-muted)',fontSize:12,fontWeight:600}}><Users size={14} style={{verticalAlign:'middle',marginRight:4}}/> Бригаде</button>
             </div>
 
-            <select value={trTo} onChange={e=>setTrTo(e.target.value)} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',fontSize:14,color:'#fff',marginBottom:12,outline:'none'}}>
-              <option value="">Выберите кому...</option>
-              <option value="Склад">На Склад</option>
-              {trToType==='worker' ? workersList.map(w=><option key={w} value={w}>{w}</option>) : brigadesList.map(b=><option key={b} value={b}>{b}</option>)}
-            </select>
+            <div style={{position:'relative', marginBottom:12}}>
+              <input 
+                list="tr-to-list"
+                className="form-input"
+                value={trTo} 
+                onChange={e=>setTrTo(e.target.value)} 
+                placeholder="Выберите кому..."
+                style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',fontSize:14,color:'#fff',outline:'none'}}
+              />
+              <datalist id="tr-to-list">
+                <option value="Склад"/>
+                {trToType==='worker' ? workersList.map(w=><option key={w} value={w}/>) : brigadesList.map(b=><option key={b} value={b}/>)}
+              </datalist>
+            </div>
 
-            <select value={trObj} onChange={e=>setTrObj(e.target.value)} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',fontSize:14,color:'#fff',marginBottom:16,outline:'none'}}>
-              <option value="">На какой объект...</option>
-              {objectsList.map(o=><option key={o} value={o}>{o}</option>)}
-            </select>
+            <div style={{position:'relative', marginBottom:16}}>
+              <input 
+                list="tr-obj-list"
+                className="form-input"
+                value={trObj} 
+                onChange={e=>setTrObj(e.target.value)} 
+                placeholder="На какой объект..."
+                style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',fontSize:14,color:'#fff',outline:'none'}}
+              />
+              <datalist id="tr-obj-list">
+                {objectsList.map(o=><option key={o} value={o}/>)}
+              </datalist>
+            </div>
 
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setTransferModal(null)} style={{flex:1,padding:'10px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-muted)',fontWeight:600}}>Отмена</button>
@@ -528,6 +599,15 @@ export default function ToolsPage() {
           <Check size={15} color="var(--green)"/> {toast}
         </div>
       )}
+
+      <Modal
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        onClose={() => setModal(p => ({ ...p, isOpen: false }))}
+        onConfirm={modal.onConfirm}
+      />
     </AppLayout>
   )
 }

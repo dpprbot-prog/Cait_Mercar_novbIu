@@ -21,6 +21,6 @@ export function generateExcelBase64(data: any[] | Record<string, any[]>, default
     }
   }
   
-  const buf = XLSX.write(workbook, { type: 'base64', bookType: 'xlsx' })
-  return buf
+  const buf = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' })
+  return buf.toString('base64')
 }

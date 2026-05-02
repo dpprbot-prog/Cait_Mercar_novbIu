@@ -26,6 +26,7 @@ export default function AuthScreen() {
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -51,7 +52,6 @@ export default function AuthScreen() {
       return setError('Заполните обязательные поля')
     }
 
-    setLoading(true)
     const res = await register({
       login: rLogin.trim(),
       passwordStr: rPassword,
@@ -67,7 +67,9 @@ export default function AuthScreen() {
       setError(res.error || 'Ошибка при регистрации')
       setLoading(false)
     } else {
-      window.location.reload()
+      setSuccessMsg(res.message || 'Заявка отправлена! Ожидайте одобрения администратором.')
+      setTab('login')
+      setLoading(false)
     }
   }
 
@@ -102,6 +104,12 @@ export default function AuthScreen() {
           </div>
         )}
 
+        {successMsg && (
+          <div style={{padding:'12px', background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:6, color:'var(--green)', fontSize:13, fontWeight:600, marginBottom:16, textAlign:'center'}}>
+            {successMsg}
+          </div>
+        )}
+
         {tab === 'login' && (
           <form onSubmit={handleLogin} style={{display:'flex', flexDirection:'column', gap:12}}>
             <div>
@@ -124,8 +132,8 @@ export default function AuthScreen() {
             <div style={{background:'rgba(255,255,255,0.02)', padding:12, borderRadius:6, border:'1px solid var(--border-light)', marginBottom:4}}>
               <h4 style={{fontSize:12, fontWeight:700, color:'var(--text-secondary)', marginBottom:10, textTransform:'uppercase'}}>Личные данные</h4>
               <div style={{display:'flex', gap:10, marginBottom:10}}>
-                <input required placeholder="Фамилия*" value={rLastName} onChange={e=>setRLastName(e.target.value)} style={{flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
-                <input required placeholder="Имя*" value={rFirstName} onChange={e=>setRFirstName(e.target.value)} style={{flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
+                <input required placeholder="Фамилия*" value={rLastName} onChange={e=>setRLastName(e.target.value)} style={{width:'100%', minWidth:0, flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
+                <input required placeholder="Имя*" value={rFirstName} onChange={e=>setRFirstName(e.target.value)} style={{width:'100%', minWidth:0, flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
               </div>
               <input placeholder="Отчество (не обязательно)" value={rPatronymic} onChange={e=>setRPatronymic(e.target.value)} style={{width:'100%', padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
             </div>
@@ -133,19 +141,19 @@ export default function AuthScreen() {
             <div style={{background:'rgba(234,179,8,0.02)', padding:12, borderRadius:6, border:'1px solid rgba(234,179,8,0.1)', marginBottom:4}}>
               <h4 style={{fontSize:12, fontWeight:700, color:'var(--yellow)', marginBottom:10, textTransform:'uppercase'}}>Антропометрия (Для СИЗ)</h4>
               <div style={{display:'flex', gap:10}}>
-                <div>
+                <div style={{flex:1, minWidth:0}}>
                   <label style={{display:'block', fontSize:11, color:'var(--text-muted)', marginBottom:4}}>Рост, см</label>
                   <input placeholder="175" value={rHeight} onChange={e=>setRHeight(e.target.value)} style={{width:'100%', padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
                 </div>
-                <div>
-                  <label style={{display:'block', fontSize:11, color:'var(--text-muted)', marginBottom:4}}>Размер обуви</label>
-                  <input placeholder="42-43" value={rShoe} onChange={e=>setRShoe(e.target.value)} style={{width:'100%', padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
+                <div style={{flex:1, minWidth:0}}>
+                  <label style={{display:'block', fontSize:11, color:'var(--text-muted)', marginBottom:4}}>Обувь</label>
+                  <input placeholder="42" value={rShoe} onChange={e=>setRShoe(e.target.value)} style={{width:'100%', padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
                 </div>
-                <div>
+                <div style={{flex:1, minWidth:0}}>
                   <label style={{display:'block', fontSize:11, color:'var(--text-muted)', marginBottom:4}}>Одежда</label>
-                  <input list="clothing-sizes" placeholder="52-54" value={rClothing} onChange={e=>setRClothing(e.target.value)} style={{width:'100%', padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
+                  <input list="clothing-sizes" placeholder="52" value={rClothing} onChange={e=>setRClothing(e.target.value)} style={{width:'100%', padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
                   <datalist id="clothing-sizes">
-                    {['S','M','L','XL','XXL','XXXL'].map(s=><option key={s} value={s} />)}
+                    {['48','50','52','54','56','S','M','L','XL','XXL'].map(s=><option key={s} value={s} />)}
                   </datalist>
                 </div>
               </div>
@@ -157,8 +165,8 @@ export default function AuthScreen() {
                 <input required placeholder="Логин*" value={rLogin} onChange={e=>setRLogin(e.target.value)} style={{width:'100%', padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
               </div>
               <div style={{display:'flex', gap:10}}>
-                <input required type="password" placeholder="Пароль*" value={rPassword} onChange={e=>setRPassword(e.target.value)} style={{flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
-                <input required type="password" placeholder="Повторите*" value={rPasswordConfirm} onChange={e=>setRPasswordConfirm(e.target.value)} style={{flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
+                <input required type="password" placeholder="Пароль*" value={rPassword} onChange={e=>setRPassword(e.target.value)} style={{width:'100%', minWidth:0, flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
+                <input required type="password" placeholder="Повторите*" value={rPasswordConfirm} onChange={e=>setRPasswordConfirm(e.target.value)} style={{width:'100%', minWidth:0, flex:1, padding:'10px', background:'var(--bg-elevated)', border:'1px solid var(--border)', borderRadius:4, color:'#fff', outline:'none', fontSize:14}} />
               </div>
             </div>
 

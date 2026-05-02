@@ -3,8 +3,8 @@ import { useState, useEffect, useCallback } from 'react'
 import AppLayout from '@/components/AppLayout'
 import './tabel.css'
 import { Send, ChevronLeft, ChevronRight, Wifi, WifiOff, Check, Users } from 'lucide-react'
-import { getBrigades, getBrigadeWorkersWithEntries, saveTimeEntry, getWorkerHistory, WorkerWithEntry } from '@/actions/tabel'
-import { getObjects } from '@/actions/common'
+import { getBrigadeWorkersWithEntries, saveTimeEntry, getWorkerHistory, WorkerWithEntry } from '@/actions/tabel'
+import { getBrigades, getObjects } from '@/actions/common'
 import { useAuth } from '@/components/AuthProvider'
 
 // ── Логика дат ─────────────────────────────────────────────
@@ -151,30 +151,39 @@ export default function TabelPage() {
               {/* Object */}
               <div className="form-group" style={{flex:1, marginBottom:0}}>
                 <label className="form-label">Объект</label>
-                <select
-                  className="form-select"
+                <input
+                  list="objects-list"
+                  className="form-input"
                   value={object}
                   onChange={e => setObject(e.target.value)}
                   disabled={submitted}
+                  placeholder="Выберите объект..."
                   style={{ borderColor: !object && !submitted ? 'var(--accent)' : undefined }}
-                >
-                  <option value="">— объект —</option>
-                  {objects.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
+                />
+                <datalist id="objects-list">
+                  {objects.map(o => <option key={o} value={o}/>)}
+                </datalist>
               </div>
 
               {/* Brigade */}
               <div className="form-group" style={{width: 140, flexShrink: 0, marginBottom:0}}>
                 <label className="form-label">Бригада</label>
-                <select 
-                  className="form-select"
+                <input 
+                  list="brigades-list"
+                  className="form-input"
                   value={activeBrigadeId} 
-                  onChange={(e) => setActiveBrigadeId(e.target.value)}
+                  onChange={(e) => {
+                    const b = brigades.find(bx => bx.name === e.target.value || bx.id === e.target.value);
+                    if (b) setActiveBrigadeId(b.id);
+                    else setActiveBrigadeId(e.target.value);
+                  }}
                   style={{ padding: '10px 8px', fontSize: 13 }}
                   disabled={!!user?.brigade_id && user.role !== 'Админ'}
-                >
-                  {brigades.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
+                  placeholder="Бригада..."
+                />
+                <datalist id="brigades-list">
+                  {brigades.map(b => <option key={b.id} value={b.name}/>)}
+                </datalist>
                 {!!user?.brigade_id && user.role !== 'Админ' && (
                   <div style={{fontSize:9, color:'var(--green)', marginTop:2, fontWeight:700}}>ФИКСИРОВАНО</div>
                 )}

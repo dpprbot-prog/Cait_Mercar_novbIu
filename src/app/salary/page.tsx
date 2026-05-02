@@ -299,7 +299,7 @@ export default function SalaryPage() {
                   return (
                     <tr key={w.id} style={{borderBottom:'1px solid rgba(255,255,255,0.04)', background:isPaid?'rgba(255,255,255,0.02)':'transparent'}}>
                       <td style={{padding:'12px 14px'}}>
-                        <div style={{fontWeight:700, color:'#fff', fontSize:14}}>{w.name}</div>
+                        <div style={{fontWeight:700, color:'#fff', fontSize:14}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
                         <div style={{fontSize:11, color:'var(--text-muted)'}}>{w.role}</div>
                       </td>
                       

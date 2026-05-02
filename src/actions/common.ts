@@ -6,8 +6,8 @@ import db from '@/lib/db'
 export async function getWorkers() {
   return db.prepare(`
     SELECT 
-      id, name, role, last_name, first_name, patronymic, 
-      height, clothing_size, shoe_size, user_color, initials, is_blocked, brigade_id
+      id, login, name, role, last_name, first_name, patronymic, 
+      height, clothing_size, shoe_size, user_color, initials, is_blocked, is_approved, brigade_id
     FROM workers 
     ORDER BY name
   `).all() as any[]
@@ -38,9 +38,39 @@ export async function getDashboardStats(workerId: string) {
   const user = db.prepare('SELECT brigade_id FROM workers WHERE id = ?').get(workerId) as { brigade_id: string } | undefined
   let brigadeCount = 0
   let checkedIn = 0
+  let brigadeMembers: any[] = []
+
   if (user?.brigade_id) {
-    brigadeCount = (db.prepare('SELECT COUNT(*) as count FROM workers WHERE brigade_id = ?').get(user.brigade_id) as any).count
-    checkedIn = (db.prepare('SELECT COUNT(*) as count FROM time_entries WHERE brigade_id = ? AND date = ?').get(user.brigade_id, today) as any).count
+    // Список всех участников бригады
+    const members = db.prepare(`
+      SELECT id, login, name, user_color, initials, role
+      FROM workers 
+      WHERE brigade_id = ? AND is_approved = 1 AND is_blocked = 0
+      ORDER BY name
+    `).all(user.brigade_id) as any[]
+
+    // Проверка, кто из них сегодня ввел часы
+    brigadeMembers = members.map(m => {
+      const entry = db.prepare(`
+        SELECT start_time, end_time, lunch_min, hours_total 
+        FROM time_entries 
+        WHERE worker_id = ? AND date = ?
+      `).get(m.id, today) as any
+
+      return {
+        ...m,
+        hasCheckedIn: !!entry,
+        details: entry ? {
+          start: entry.start_time,
+          end: entry.end_time,
+          lunch: entry.lunch_min,
+          total: entry.hours_total
+        } : null
+      }
+    })
+
+    brigadeCount = members.length
+    checkedIn = brigadeMembers.filter(m => m.hasCheckedIn).length
   }
 
   // 4. СИЗ: сколько скоро истекает или уже истёк
@@ -52,10 +82,16 @@ export async function getDashboardStats(workerId: string) {
     urgentOrders: urgentSupply.count,
     brigadeSize: brigadeCount,
     checkedInCount: checkedIn,
+    brigadeMembers, // Новый список с деталями
     sizAlerts: sizWarnings.count
   }
 }
 
 export async function getStores() {
   return db.prepare('SELECT * FROM stores ORDER BY name').all() as any[]
+}
+
+// Получить список всех Бригад
+export async function getBrigades() {
+  return db.prepare('SELECT id, name FROM brigades ORDER BY name').all() as { id: string, name: string }[]
 }

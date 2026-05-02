@@ -1,15 +1,23 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Clock, ShoppingCart, DollarSign,
-  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit
+  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit, Settings
 } from 'lucide-react'
+import { 
+  getNotifications, 
+  markAsRead, 
+  markAllAsRead, 
+  getNotificationSettings, 
+  updateNotificationSettings 
+} from '@/actions/notifications'
+import Modal from './Modal'
 
 const NAV = [
   { href: '/',            label: 'Главная',    icon: LayoutDashboard, roles: ['*'] },
-  { href: '/tabel',       label: 'Табель',     icon: Clock,           roles: ['Админ', 'Мастер', 'Бригадир'] },
+  { href: '/tabel',       label: 'Табель',     icon: Clock,           roles: ['*'] },
   { href: '/supply',      label: 'Снабжение',  icon: ShoppingCart,    roles: ['Админ', 'Склад', 'Мастер', 'Бригадир'] },
   { href: '/salary',      label: 'Зарплата',   icon: DollarSign,      roles: ['Админ'] },
   { href: '/siz',         label: 'СИЗ',        icon: Shield,          roles: ['*'] },
@@ -39,24 +47,84 @@ const PAGE_TITLES: Record<string, string> = {
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter()
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { user } = useAuth()
 
   const [showProfile, setShowProfile] = useState(false)
+  const [showNotifications, setShowNotifications] = useState(false)
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [notifSettings, setNotifSettings] = useState<any>(null)
+  const [modal, setModal] = useState<{isOpen:boolean, title:string, message:string, type:'info'|'success'|'danger'|'warning'}>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info'
+  })
+  
+  useEffect(() => {
+    const loadNotifs = async () => {
+      const [n, s] = await Promise.all([
+        getNotifications(),
+        getNotificationSettings()
+      ])
+      setNotifications(n)
+      setNotifSettings(s)
+    }
+    loadNotifs()
+  }, [])
+
+  const unreadCount = notifications.filter(n => !n.is_read).length
+
+  const handleMarkRead = async (id: number) => {
+    await markAsRead(id)
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: 1 } : n))
+  }
+
+  const handleMarkAllRead = async () => {
+    await markAllAsRead()
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })))
+  }
+
+  const handleToggleSetting = async (key: string) => {
+    const newSettings = {
+      ...notifSettings,
+      [key]: !notifSettings[key]
+    }
+    setNotifSettings(newSettings)
+    await updateNotificationSettings(newSettings)
+  }
   const [pH, setPH] = useState(user?.height ? String(user.height) : '')
   const [pC, setPC] = useState(user?.clothing_size || '')
   const [pS, setPS] = useState(user?.shoe_size ? String(user.shoe_size) : '')
 
+  // ── ROUTE PROTECTION ──
+  useEffect(() => {
+    if (user) {
+      const currentNav = NAV.find(item => item.href === pathname)
+      if (currentNav) {
+        const isAllowed = currentNav.roles.includes('*') || currentNav.roles.includes(user.role)
+        if (!isAllowed) {
+          router.replace('/')
+        }
+      }
+    }
+  }, [user, pathname, router])
+
   const handleUpdateProfile = async () => {
-    const res = await updateProfile({
-      height: parseInt(pH) || 0,
-      clothingSize: pC,
-      shoeSize: pS
-    })
+    const res = await updateWorkerAdmin(user.id, {
+      ...user,
+      height: Number(pH),
+      clothing_size: pC,
+      shoe_size: pS
+    } as any)
+    
     if (res.success) {
-      setShowProfile(false)
-      window.location.reload()
+      setModal({ isOpen: true, title: 'Успех', message: 'Профиль успешно обновлен', type: 'success' })
+      setTimeout(() => setShowProfile(false), 1500)
+    } else {
+      setModal({ isOpen: true, title: 'Ошибка', message: res.error || 'Не удалось сохранить изменения', type: 'danger' })
     }
   }
 
@@ -121,8 +189,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="user-avatar" style={{ background: user.user_color }}>{user.initials}</div>
               <div className="user-info">
                 <strong style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {user.name} <Edit size={10} style={{ opacity: 0.5 }} />
+                  {`${user.last_name || ''} ${user.first_name || ''} ${user.patronymic || ''}`.trim() || user.name} <Edit size={10} style={{ opacity: 0.5 }} />
                 </strong>
+                <span style={{ fontSize: 10, opacity: 0.6, display: 'block', marginBottom: 2 }}>
+                  {user.login ? `@${user.login}` : 'нет логина'}
+                </span>
                 <span>{user.role}</span>
               </div>
             </div>
@@ -136,7 +207,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Profile Modal */}
       {showProfile && user && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div className="card" style={{ maxWidth: 400, width: '100%', position: 'relative' }}>
+          <div className="card" style={{ maxWidth: 400, width: '100%', position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
             <button onClick={() => setShowProfile(false)} style={{ position: 'absolute', top: 15, right: 15, background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={20} /></button>
             <h2 style={{ color: '#fff', marginBottom: 20, fontSize: 20 }}>Ваш профиль</h2>
             
@@ -173,6 +244,49 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 />
               </div>
 
+              <div className="profile-section" style={{marginTop: 20}}>
+                <h4 style={{margin:'0 0 12px 0', fontSize:14, opacity:0.7, display:'flex', alignItems:'center', gap:8}}>
+                  <Settings size={14}/> Настройки уведомлений
+                </h4>
+                <div style={{display:'flex', flexDirection:'column', gap:10}}>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                    <span style={{fontSize:13}}>Сроки СИЗ и замены</span>
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        checked={!!notifSettings?.notify_siz} 
+                        onChange={() => handleToggleSetting('notify_siz')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+                  <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                    <span style={{fontSize:13}}>Статус снабжения</span>
+                    <label className="switch">
+                      <input 
+                        type="checkbox" 
+                        checked={!!notifSettings?.notify_supply} 
+                        onChange={() => handleToggleSetting('notify_supply')}
+                      />
+                      <span className="slider"></span>
+                    </label>
+                  </div>
+                  {user.role === 'Админ' && (
+                    <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                      <span style={{fontSize:13}}>Новые регистрации</span>
+                      <label className="switch">
+                        <input 
+                          type="checkbox" 
+                          checked={!!notifSettings?.notify_admin_tasks} 
+                          onChange={() => handleToggleSetting('notify_admin_tasks')}
+                        />
+                        <span className="slider"></span>
+                      </label>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <button 
                 onClick={handleUpdateProfile}
                 style={{ 
@@ -203,10 +317,42 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
           <div className="header-right">
             <span className="header-date">{formatDate()}</span>
-            <button className="bell-btn">
-              <Bell size={16} />
-              <span className="badge" />
-            </button>
+            <div style={{position:'relative'}}>
+              <button className="bell-btn" onClick={() => setShowNotifications(!showNotifications)}>
+                <Bell size={16} />
+                {unreadCount > 0 && <span className="badge" />}
+              </button>
+
+              {showNotifications && (
+                <div className="notif-dropdown">
+                  <div className="notif-header">
+                    <span>Уведомления</span>
+                    {unreadCount > 0 && (
+                      <button onClick={handleMarkAllRead}>Прочитать все</button>
+                    )}
+                  </div>
+                  <div className="notif-list">
+                    {notifications.length === 0 ? (
+                      <div className="notif-empty">Нет уведомлений</div>
+                    ) : (
+                      notifications.map(n => (
+                        <div 
+                          key={n.id} 
+                          className={`notif-item ${!n.is_read ? 'unread' : ''}`}
+                          onClick={() => handleMarkRead(n.id)}
+                        >
+                          <div className="notif-title">{n.title}</div>
+                          <div className="notif-message">{n.message}</div>
+                          <div className="notif-time">
+                            {new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </header>
 
@@ -215,6 +361,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </div>
+      <Modal 
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        onClose={() => setModal(prev => ({ ...prev, isOpen: false }))}
+        showConfirm={false}
+        cancelText="Закрыть"
+      />
     </div>
   )
 }

@@ -12,6 +12,7 @@ async function checkAdmin() {
 }
 
 export async function updateWorkerAdmin(workerId: string, data: {
+  login: string,
   last_name: string,
   first_name: string,
   patronymic?: string,
@@ -20,7 +21,8 @@ export async function updateWorkerAdmin(workerId: string, data: {
   height?: number | null,
   clothing_size?: string | null,
   shoe_size?: string | null,
-  is_blocked?: number
+  is_blocked?: number,
+  passwordStr?: string
 }) {
   try {
     await checkAdmin()
@@ -29,10 +31,12 @@ export async function updateWorkerAdmin(workerId: string, data: {
     
     db.prepare(`
       UPDATE workers 
-      SET last_name = ?, first_name = ?, patronymic = ?, name = ?, role = ?, brigade_id = ?, 
-          height = ?, clothing_size = ?, shoe_size = ?, is_blocked = COALESCE(?, is_blocked)
+      SET login = ?, last_name = ?, first_name = ?, patronymic = ?, name = ?, role = ?, brigade_id = ?, 
+          height = ?, clothing_size = ?, shoe_size = ?, is_blocked = COALESCE(?, is_blocked),
+          password_hash = COALESCE(?, password_hash)
       WHERE id = ?
     `).run(
+      data.login,
       data.last_name, 
       data.first_name, 
       data.patronymic || '', 
@@ -43,6 +47,7 @@ export async function updateWorkerAdmin(workerId: string, data: {
       data.clothing_size || null, 
       data.shoe_size || null,
       data.is_blocked !== undefined ? data.is_blocked : null,
+      data.passwordStr || null, 
       workerId
     )
     
@@ -61,6 +66,9 @@ export async function deleteWorker(workerId: string) {
     if (workerId === 'admin') {
       return { success: false, error: 'Нельзя удалить главного администратора' }
     }
+
+    // Ручная очистка таблиц, где не сработал ON DELETE CASCADE
+    db.prepare('DELETE FROM time_entries WHERE worker_id = ?').run(workerId)
 
     db.prepare('DELETE FROM workers WHERE id = ?').run(workerId)
     
@@ -223,5 +231,18 @@ export async function deleteStore(id: string) {
     return { success: true }
   } catch (error: any) {
     return { success: false, error: error.message }
+  }
+}
+export async function approveWorker(workerId: string, data: { role: string, brigade_id?: string | null }) {
+  try {
+    await checkAdmin()
+    db.prepare('UPDATE workers SET is_approved = 1, role = ?, brigade_id = ? WHERE id = ?')
+      .run(data.role, data.brigade_id || null, workerId)
+    
+    revalidatePath('/employees')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Approve worker error:', error)
+    return { success: false, error: error.message || 'Ошибка одобрения' }
   }
 }

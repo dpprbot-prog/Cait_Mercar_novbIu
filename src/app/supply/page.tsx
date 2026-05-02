@@ -11,7 +11,7 @@ import {
   BarChart2, Scissors
 } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
-import { getObjects, getDrivers } from '@/actions/common'
+import { getObjects, getDrivers, getStores } from '@/actions/common'
 
 // ─────────────────────────────────────────────
 //  Types
@@ -25,7 +25,7 @@ import {
 // ─────────────────────────────────────────────
 //  Config
 // ─────────────────────────────────────────────
-const ALL_STORES = ['Леруа Мерлен Юг', 'Леруа Мерлен Север', 'Петрович', 'ОБИ', 'Castorama', 'Максидом', 'Электромонтаж', 'Метизы СПб', 'Сатурн-Р']
+// Stores will be loaded from DB
 
 const PRIORITIES = [
   {key:'planned'as Priority, label:'Планово', color:'#22c55e', bg:'rgba(34,197,94,.18)'},
@@ -58,6 +58,7 @@ export default function SupplyPage() {
   // Dynamic lists
   const [dbObjects, setDbObjects] = useState<string[]>([])
   const [dbDrivers, setDbDrivers] = useState<{name:string}[]>([])
+  const [dbStores,  setDbStores]  = useState<{name:string}[]>([])
 
   // Modals
   const [splitModal, setSplitModal] = useState<{mid:string;orderId:string}|null>(null)
@@ -84,14 +85,16 @@ export default function SupplyPage() {
 
   // ── SERVER DATA SYNC ──
   const loadData = async () => {
-    const [ordersData, objs, drvs] = await Promise.all([
+    const [ordersData, objs, drvs, strs] = await Promise.all([
       getSupplyOrders(),
       getObjects(),
-      getDrivers()
+      getDrivers(),
+      getStores()
     ])
     setOrders(ordersData)
     setDbObjects(objs)
     setDbDrivers(drvs)
+    setDbStores(strs)
   }
 
   useEffect(() => { loadData() }, [])
@@ -189,10 +192,10 @@ export default function SupplyPage() {
 
   const newCount = allFlat.filter(i=>i.mStatus==='new').length
   const allStores = useMemo(()=>{
-    const s = new Set<string>([...ALL_STORES])
+    const s = new Set<string>(dbStores.map(st => st.name))
     orders.forEach(o=>o.items.forEach(m=>{ if(m.storeName) s.add(m.storeName) }))
     return Array.from(s)
-  },[orders])
+  },[orders, dbStores])
 
   const applyBulk = async () => {
     if(!bulkStore&&!bulkDriver) return
@@ -265,36 +268,44 @@ export default function SupplyPage() {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
               <div>
                 <label style={{display:'block',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>📍 Объект</label>
-                <select className="form-select" value={fObj} onChange={e=>setFObj(e.target.value)} style={{borderColor:!fObj?'var(--accent)':undefined,color:'#fff'}}>
-                  <option value="">Выберите объект...</option>
-                  {dbObjects.map(o=><option key={o}>{o}</option>)}
-                </select>
+                <input 
+                  list="objects-list"
+                  className="form-input" 
+                  value={fObj} 
+                  onChange={e=>setFObj(e.target.value)} 
+                  placeholder="Введите или выберите объект..."
+                  style={{borderColor:!fObj?'var(--accent)':undefined,color:'#fff'}}
+                />
+                <datalist id="objects-list">
+                  {dbObjects.map(o=><option key={o} value={o}/>)}
+                </datalist>
               </div>
               <div>
                 <label style={{display:'block',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:6}}>● Приоритет</label>
-                <select 
-                  value={fPri} 
-                  onChange={e=>setFPri(e.target.value as Priority)}
-                  style={{
-                    width: 'max-content',
-                    minWidth: '140px',
-                    background: PRIORITIES.find(p => p.key === fPri)?.bg || 'rgba(0,0,0,0.5)',
-                    border: `1px solid ${PRIORITIES.find(p => p.key === fPri)?.color || 'rgba(255,255,255,0.2)'}`,
-                    color: PRIORITIES.find(p => p.key === fPri)?.color || '#fff',
-                    borderRadius: 'var(--radius-sm)',
-                    padding: '11px 12px',
-                    fontSize: 14,
-                    fontWeight: 700,
-                    outline: 'none',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {PRIORITIES.map(p=>(
-                    <option key={p.key} value={p.key} style={{background:'#1a1a2e',color:'#fff'}}>
+                <div style={{display:'flex', gap:4, background:'rgba(255,255,255,0.03)', padding:4, borderRadius:10, border:'1px solid var(--border)'}}>
+                  {PRIORITIES.map(p => (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setFPri(p.key)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 4px',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        borderRadius: 7,
+                        border: 'none',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        background: fPri === p.key ? p.bg : 'transparent',
+                        color: fPri === p.key ? p.color : 'rgba(255,255,255,0.3)',
+                        boxShadow: fPri === p.key ? `0 2px 8px ${p.bg}` : 'none'
+                      }}
+                    >
                       {p.label}
-                    </option>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
             </div>
             <label style={{display:'block',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:'0.5px',marginBottom:8}}>Список материалов</label>
@@ -412,11 +423,17 @@ export default function SupplyPage() {
               </div>
               <div style={{marginBottom:20}}>
                 <label style={{display:'block',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.5)',marginBottom:6}}>Водитель</label>
-                <select value={splitDriver} onChange={e=>setSplitDriver(e.target.value)}
-                  style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.15)',borderRadius:6,padding:'10px 12px',fontSize:14,color:'#fff',outline:'none'}}>
-                  <option value="">Выберите водителя...</option>
-                  {dbDrivers.map(d=><option key={d.name} value={d.name}>{d.name}</option>)}
-                </select>
+                <input 
+                  list="drivers-list"
+                  className="form-input"
+                  value={splitDriver} 
+                  onChange={e=>setSplitDriver(e.target.value)} 
+                  placeholder="Выберите водителя..."
+                  style={{color:'#fff'}}
+                />
+                <datalist id="drivers-list">
+                  {dbDrivers.map(d=><option key={d.name} value={d.name}/>)}
+                </datalist>
               </div>
               <div style={{display:'flex',gap:10}}>
                 <button onClick={()=>setSplitModal(null)} style={{flex:1,padding:'12px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'var(--radius-sm)',color:'rgba(255,255,255,0.6)',fontWeight:600,cursor:'pointer',fontSize:13}}>Отмена</button>
@@ -594,12 +611,13 @@ export default function SupplyPage() {
                         style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:5,padding:'5px 8px',fontSize:12,color:'rgba(255,255,255,0.85)',outline:'none'}}/>
                       <datalist id="stores-m">{allStores.map(s=><option key={s} value={s}/>)}</datalist>
                       {/* Row 3: driver compact */}
-                      <select defaultValue={item.driver||''}
-                        onChange={e=>triggerUpdateItem(item.mid,{driver:e.target.value})}
-                        style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:5,padding:'5px 8px',fontSize:12,color:'rgba(255,255,255,0.85)',outline:'none'}}>
-                        <option value="">🚚 Водитель...</option>
-                        {dbDrivers.map(d=><option key={d.name} value={d.name}>{d.name}</option>)}
-                      </select>
+                      <input 
+                        list="drivers-list"
+                        placeholder="🚚 Водитель..."
+                        defaultValue={item.driver||''}
+                        onBlur={e=>triggerUpdateItem(item.mid,{driver:e.target.value})}
+                        style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:5,padding:'5px 8px',fontSize:12,color:'rgba(255,255,255,0.85)',outline:'none'}}
+                      />
                     </div>
                   </div>
 

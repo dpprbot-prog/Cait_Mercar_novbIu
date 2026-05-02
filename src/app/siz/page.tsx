@@ -86,7 +86,7 @@ export default function PPEPage() {
   // Auto-suggest size based on worker profile
   useEffect(() => {
     if (fWorker) {
-      const worker = dbWorkers.find(w => w.name === fWorker)
+      const worker = dbWorkers.find(w => `${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() === fWorker || w.name === fWorker)
       if (worker) {
         if (fCat === 'feet' && worker.shoe_size) {
            setFSize(String(worker.shoe_size))
@@ -233,19 +233,29 @@ export default function PPEPage() {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:12}}>
               <div>
                 <label style={{display:'block',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',marginBottom:6}}>Сотрудник</label>
-                <select value={fWorker} onChange={e=>setFWorker(e.target.value)}
-                  style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid:rgba(255,255,255,0.1)',borderRadius:6,padding:'10px 12px',fontSize:14,color:'#fff',outline:'none',borderColor:!fWorker?'var(--accent)':undefined}}>
-                  <option value="">Выбрать...</option>
-                  {dbWorkers.map(w=><option key={w.id} value={w.name}>{w.name}</option>)}
-                </select>
+                <input 
+                  list="siz-workers"
+                  value={fWorker} 
+                  onChange={e=>setFWorker(e.target.value)}
+                  placeholder="Выбрать сотрудника..."
+                  style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,padding:'10px 12px',fontSize:14,color:'#fff',outline:'none',borderColor:!fWorker?'var(--accent)':undefined}}
+                />
+                <datalist id="siz-workers">
+                  {dbWorkers.map(w=><option key={w.id} value={`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}/>)}
+                </datalist>
               </div>
               <div>
                 <label style={{display:'block',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',marginBottom:6}}>Объект</label>
-                <select value={fObject} onChange={e=>setFObject(e.target.value)}
-                  style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,padding:'10px 12px',fontSize:14,color:'#fff',outline:'none'}}>
-                  <option value="">Выбрать...</option>
-                  {dbObjects.map(o=><option key={o}>{o}</option>)}
-                </select>
+                <input 
+                  list="siz-objects"
+                  value={fObject} 
+                  onChange={e=>setFObject(e.target.value)}
+                  placeholder="Выбрать объект..."
+                  style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:6,padding:'10px 12px',fontSize:14,color:'#fff',outline:'none'}}
+                />
+                <datalist id="siz-objects">
+                  {dbObjects.map(o=><option key={o} value={o}/>)}
+                </datalist>
               </div>
               <div>
                 <label style={{display:'block',fontSize:11,fontWeight:700,color:'rgba(255,255,255,0.4)',textTransform:'uppercase',marginBottom:6}}>Срок службы (дней)</label>

@@ -5,8 +5,7 @@ import {
   Building2, Search, MapPin, HardHat, Wrench, ShoppingCart, 
   Plus, X, Trash, Users, Store, Edit, Phone, UserPlus, Download
 } from 'lucide-react'
-import { getObjects, getWorkers, getStores } from '@/actions/common'
-import { getBrigades } from '@/actions/tabel'
+import { getObjects, getWorkers, getStores, getBrigades } from '@/actions/common'
 import { 
   addObject, deleteObject, updateObject,
   addBrigade, updateBrigade, deleteBrigade, setWorkerBrigade,
@@ -14,6 +13,7 @@ import {
 } from '@/actions/admin'
 import { exportDirectoriesExcel } from '@/actions/export'
 import { useAuth } from '@/components/AuthProvider'
+import Modal from '@/components/Modal'
 
 type TabType = 'objects' | 'brigades' | 'stores'
 
@@ -35,6 +35,18 @@ export default function ObjectsPage() {
   const [showAdd, setShowAdd] = useState(false)
   const [editingItem, setEditingItem] = useState<any>(null)
   const [managingMembers, setManagingMembers] = useState<any>(null)
+  const [modal, setModal] = useState<{
+    isOpen: boolean, 
+    title: string, 
+    message: string, 
+    type: 'info' | 'success' | 'danger' | 'warning',
+    onConfirm?: () => void
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info'
+  })
 
   // Form States
   const [formData, setFormData] = useState({
@@ -102,30 +114,69 @@ export default function ObjectsPage() {
       setShowAdd(false)
       setEditingItem(null)
       refreshData()
+      setModal({
+        isOpen: true,
+        title: 'Успех',
+        message: editingItem ? 'Изменения сохранены' : 'Запись добавлена',
+        type: 'success'
+      })
     } else {
-      alert(res?.error || 'Ошибка')
+      setModal({
+        isOpen: true,
+        title: 'Ошибка',
+        message: res?.error || 'Произошла ошибка при сохранении',
+        type: 'danger'
+      })
     }
     setLoading(false)
   }
 
   const handleDelete = async (idOrName: string) => {
-    if (!confirm('Вы уверены? Это действие нельзя отменить.')) return
-    let res: any
-    if (activeTab === 'objects') res = await deleteObject(idOrName)
-    else if (activeTab === 'brigades') res = await deleteBrigade(idOrName)
-    else if (activeTab === 'stores') res = await deleteStore(idOrName)
+    setModal({
+      isOpen: true,
+      title: 'Подтверждение',
+      message: 'Вы уверены, что хотите удалить эту запись? Это действие нельзя отменить.',
+      type: 'warning',
+      onConfirm: async () => {
+        let res: any
+        if (activeTab === 'objects') res = await deleteObject(idOrName)
+        else if (activeTab === 'brigades') res = await deleteBrigade(idOrName)
+        else if (activeTab === 'stores') res = await deleteStore(idOrName)
 
-    if (res?.success) refreshData()
-    else alert(res?.error || 'Ошибка')
+        if (res?.success) {
+          refreshData()
+          setModal(prev => ({ ...prev, isOpen: false }))
+        } else {
+          setModal({
+            isOpen: true,
+            title: 'Ошибка',
+            message: res?.error || 'Не удалось удалить запись',
+            type: 'danger'
+          })
+        }
+      }
+    })
   }
 
   const handleExport = async () => {
     const res = await exportDirectoriesExcel()
-    if (res.success) {
+    if (res.success && res.base64) {
+      const byteCharacters = atob(res.base64)
+      const byteNumbers = new Array(byteCharacters.length)
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i)
+      }
+      const byteArray = new Uint8Array(byteNumbers)
+      const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+      const url = URL.createObjectURL(blob)
+      
       const link = document.createElement('a')
-      link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${res.base64}`
+      link.href = url
       link.download = res.fileName
+      document.body.appendChild(link)
       link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
     }
   }
 
@@ -136,7 +187,12 @@ export default function ObjectsPage() {
       const updatedWorkers = await getWorkers()
       setWorkers(updatedWorkers)
     } else {
-      alert(res.error)
+      setModal({
+        isOpen: true,
+        title: 'Ошибка',
+        message: res.error || 'Ошибка при управлении участниками',
+        type: 'danger'
+      })
     }
   }
 
@@ -250,17 +306,35 @@ export default function ObjectsPage() {
                   )}
 
                   <td style={{padding:'14px 16px', textAlign:'right'}}>
-                    <div style={{display:'flex', gap:6, justifyContent:'flex-end'}}>
+                    <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
                       {activeTab === 'brigades' && (
-                        <button onClick={() => setManagingMembers(item)} title="Управление участниками" style={{width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:8, color:'var(--green)', cursor:'pointer'}}>
-                          <UserPlus size={16}/>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setManagingMembers(item) }} 
+                          title="Управление участниками" 
+                          style={{width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(34,197,94,0.1)', border:'1px solid rgba(34,197,94,0.2)', borderRadius:8, color:'var(--green)', transition:'all 0.2s', cursor:'pointer'}}
+                          onMouseEnter={e => { e.currentTarget.style.background='var(--green)'; e.currentTarget.style.color='#fff'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background='rgba(34,197,94,0.1)'; e.currentTarget.style.color='var(--green)'; }}
+                        >
+                          <UserPlus size={14}/>
                         </button>
                       )}
-                      <button onClick={() => handleOpenEdit(item)} style={{width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', borderRadius:8, color:'rgba(255,255,255,0.6)', cursor:'pointer'}}>
-                        <Edit size={16}/>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleOpenEdit(item) }} 
+                        title="Редактировать"
+                        style={{width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.2)', borderRadius:8, color:'#3b82f6', transition:'all 0.2s', cursor:'pointer'}}
+                        onMouseEnter={e => { e.currentTarget.style.background='#3b82f6'; e.currentTarget.style.color='#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='rgba(59,130,246,0.1)'; e.currentTarget.style.color='#3b82f6'; }}
+                      >
+                        <Edit size={14}/>
                       </button>
-                      <button onClick={() => handleDelete(id)} style={{width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:8, color:'var(--red)', cursor:'pointer'}}>
-                        <Trash size={16}/>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handleDelete(id) }} 
+                        title="Удалить"
+                        style={{width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:8, color:'var(--red)', transition:'all 0.2s', cursor:'pointer'}}
+                        onMouseEnter={e => { e.currentTarget.style.background='var(--red)'; e.currentTarget.style.color='#fff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background='rgba(239,68,68,0.1)'; e.currentTarget.style.color='var(--red)'; }}
+                      >
+                        <Trash size={14}/>
                       </button>
                     </div>
                   </td>
@@ -344,7 +418,7 @@ export default function ObjectsPage() {
                              {w.initials}
                            </div>
                            <div>
-                             <div style={{fontSize:14, fontWeight:700, color:'#fff'}}>{w.name}</div>
+                             <div style={{fontSize:14, fontWeight:700, color:'#fff'}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
                              <div style={{fontSize:11, color:isInOther ? 'var(--red)' : 'rgba(255,255,255,0.3)'}}>
                                 {isInOther ? `В бригаде: ${brigades.find(b=>b.id===w.brigade_id)?.name || w.brigade_id}` : (w.role || 'Рабочий')}
                              </div>
@@ -374,6 +448,17 @@ export default function ObjectsPage() {
           </div>
         </div>
       )}
+      <Modal 
+        isOpen={modal.isOpen}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+        onClose={() => setModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={modal.onConfirm}
+        showConfirm={!!modal.onConfirm}
+        confirmText="Да, удалить"
+        cancelText={modal.onConfirm ? "Отмена" : "Закрыть"}
+      />
     </AppLayout>
   )
 }

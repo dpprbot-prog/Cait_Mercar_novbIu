@@ -18,10 +18,6 @@ export interface WorkerWithEntry {
   hoursTotal: number
 }
 
-// Получить список всех Бригад
-export async function getBrigades() {
-  return db.prepare('SELECT id, name FROM brigades ORDER BY name').all() as { id: string, name: string }[]
-}
 
 
 
