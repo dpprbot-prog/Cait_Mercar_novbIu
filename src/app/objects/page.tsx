@@ -168,15 +168,20 @@ export default function ObjectsPage() {
       }
       const byteArray = new Uint8Array(byteNumbers)
       const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
-      const url = URL.createObjectURL(blob)
+      const url = window.URL.createObjectURL(blob)
       
       const link = document.createElement('a')
+      link.style.display = 'none'
       link.href = url
-      link.download = res.fileName
+      link.setAttribute('download', res.fileName)
+      
       document.body.appendChild(link)
       link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      
+      setTimeout(() => {
+        document.body.removeChild(link)
+        window.URL.revokeObjectURL(url)
+      }, 100)
     }
   }
 

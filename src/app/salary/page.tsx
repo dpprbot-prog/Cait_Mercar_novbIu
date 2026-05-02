@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 
 import { getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, BrigadeSalaryData, WorkerSalaryData } from '@/actions/salary'
+import { exportSalaryToTemplate } from '@/actions/export'
+import { FileDown } from 'lucide-react'
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
 
@@ -151,6 +153,17 @@ export default function SalaryPage() {
     showToast('Статус: выплачено')
   }
 
+  const handleExportTemplate = () => {
+    // Используем скрытую ссылку для максимальной совместимости с Chrome
+    const link = document.createElement('a')
+    link.href = `/api/export/salary?month=${monthIdx}&year=${year}&brigadeId=${activeTab}`
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    showToast('Запрос на экспорт отправлен')
+  }
+
   // ─────────────────────────────────────────────
   //  Math (Котловой КТУ)
   // ─────────────────────────────────────────────
@@ -198,6 +211,18 @@ export default function SalaryPage() {
           <div style={{fontWeight:700,fontSize:13,width:110,textAlign:'center',color:'#fff'}}>{MONTHS[monthIdx]} {year}</div>
           <button onClick={handleNextMonth} style={{padding:6,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-muted)',cursor:'pointer',border:'none',background:'transparent'}}><ChevronRight size={16}/></button>
         </div>
+
+        <button 
+          onClick={handleExportTemplate}
+          style={{
+            display:'flex', alignItems:'center', gap:8, padding:'8px 16px', background:'var(--blue)', color:'#fff', 
+            border:'none', borderRadius:20, fontWeight:700, fontSize:13, cursor:'pointer', transition:'all 0.2s'
+          }}
+          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+        >
+          <FileDown size={16}/> Экспорт в шаблон
+        </button>
       </div>
 
       <div className="responsive-flex-col" style={{ width: '100%' }}>
