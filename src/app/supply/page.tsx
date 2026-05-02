@@ -8,7 +8,7 @@ import {
   Search, ShoppingCart, MapPin, ArrowUpDown,
   Image as ImageIcon, Store, UserCheck,
   ChevronRight, Copy, CheckSquare, Square, AlertCircle,
-  BarChart2, Scissors
+  BarChart2, Scissors, Trash2
 } from 'lucide-react'
 import { useAuth } from '@/components/AuthProvider'
 import { getObjects, getDrivers, getStores } from '@/actions/common'
@@ -19,6 +19,7 @@ import { getObjects, getDrivers, getStores } from '@/actions/common'
 import { 
   getSupplyOrders, createSupplyOrder, updateSupplyItem, 
   splitSupplyItem, partialPickupSupplyItem, addSupplyComment, bulkAssignSupplyItems,
+  deleteSupplyItem, deleteSupplyOrder,
   Order, MatItem, MComment, MStatus, Priority 
 } from '@/actions/supply'
 
@@ -203,6 +204,20 @@ export default function SupplyPage() {
     await bulkAssignSupplyItems(ids, bulkStore||undefined, bulkDriver||undefined)
     showToast(`Назначено ${ids.length} позиций`)
     setSelMids(new Set()); setBulkStore(''); setBulkDriver('')
+    loadData()
+  }
+  
+  const handleDeleteItem = async (mid: string, name: string) => {
+    if (!confirm(`Удалить позицию "${name}"?`)) return
+    await deleteSupplyItem(mid)
+    showToast(`Позиция удалена`)
+    loadData()
+  }
+
+  const handleDeleteOrder = async (orderId: string) => {
+    if (!confirm(`Удалить ВСЮ заявку #${orderId} со всеми позициями?`)) return
+    await deleteSupplyOrder(orderId)
+    showToast(`Заявка #${orderId} удалена`)
     loadData()
   }
 
@@ -598,7 +613,12 @@ export default function SupplyPage() {
                             <Scissors size={10}/> ÷
                           </button>
                         )}
-                        <button onClick={()=>toggleExp(item.mid)}
+                          <button onClick={()=>handleDeleteItem(item.mid, item.name)}
+                            title="Удалить позицию"
+                            style={{padding:'3px 6px',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:4,color:'#ef4444',cursor:'pointer',display:'flex',alignItems:'center',gap:3,fontSize:10,fontWeight:600,flexShrink:0}}>
+                            <Trash2 size={10}/>
+                          </button>
+                          <button onClick={()=>toggleExp(item.mid)}
                           style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:3,background:'none',border:'1px solid rgba(255,255,255,0.08)',borderRadius:4,padding:'3px 7px',color:item.comments.length>0||hasAttach?'rgba(255,255,255,0.8)':'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:11,fontWeight:600}}>
                           <MessageSquare size={11} color={item.comments.length>0?'var(--accent)':hasAttach?'#60a5fa':undefined}/>
                           {item.comments.length>0?item.comments.length:hasAttach?'📎':''}
@@ -775,6 +795,9 @@ export default function SupplyPage() {
                 <span style={{fontWeight:700,fontSize:16,color:'#fff'}}>{order.object}</span>
                 <span className={PBADGE[order.priority]}>{PLABEL[order.priority]}</span>
                 <span style={{fontSize:12,color:'rgba(255,255,255,0.35)',marginLeft:'auto'}}>{order.author} · {order.createdAt}</span>
+                <button onClick={()=>handleDeleteOrder(order.id)} title="Удалить заявку целиком" style={{background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:6, color:'#ef4444', padding:'4px 8px', cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontSize:11, fontWeight:700}}>
+                  <Trash2 size={13}/> Удалить
+                </button>
               </div>
               <div style={{display:'grid',gap:6}}>
                 {order.items.map(m=>(

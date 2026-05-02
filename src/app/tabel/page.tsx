@@ -171,9 +171,9 @@ export default function TabelPage() {
                 <input 
                   list="brigades-list"
                   className="form-input"
-                  value={activeBrigadeId} 
+                  value={brigades.find(b => b.id === activeBrigadeId)?.name || activeBrigadeId} 
                   onChange={(e) => {
-                    const b = brigades.find(bx => bx.name === e.target.value || bx.id === e.target.value);
+                    const b = brigades.find(bx => bx.name === e.target.value);
                     if (b) setActiveBrigadeId(b.id);
                     else setActiveBrigadeId(e.target.value);
                   }}

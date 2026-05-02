@@ -236,3 +236,49 @@ export async function bulkAssignSupplyItems(mids: string[], storeName?: string, 
     
   revalidatePath('/supply')
 }
+
+// ── DELETE ITEM ──
+export async function deleteSupplyItem(mid: string) {
+  const item = db.prepare('SELECT name, order_id FROM supply_items WHERE mid = ?').get(mid) as any
+  if (!item) return
+
+  db.prepare('DELETE FROM supply_items WHERE mid = ?').run(mid)
+  db.prepare('DELETE FROM supply_comments WHERE item_mid = ?').run(mid)
+
+  const admin = await getCurrentUser()
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'delete',
+    entity_type: 'supply',
+    entity_id: mid,
+    details: `Удалена позиция "${item.name}" из заявки #${item.order_id}`
+  })
+
+  revalidatePath('/supply')
+}
+
+// ── DELETE ORDER ──
+export async function deleteSupplyOrder(orderId: string) {
+  const order = db.prepare('SELECT object FROM supply_orders WHERE id = ?').get(orderId) as any
+  if (!order) return
+
+  db.transaction(() => {
+    // Delete comments for all items in this order
+    db.prepare('DELETE FROM supply_comments WHERE item_mid IN (SELECT mid FROM supply_items WHERE order_id = ?)').run(orderId)
+    // Delete items
+    db.prepare('DELETE FROM supply_items WHERE order_id = ?').run(orderId)
+    // Delete order
+    db.prepare('DELETE FROM supply_orders WHERE id = ?').run(orderId)
+  })()
+
+  const admin = await getCurrentUser()
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'delete',
+    entity_type: 'supply',
+    entity_id: orderId,
+    details: `Удалена вся заявка на снабжение #${orderId} (${order.object})`
+  })
+
+  revalidatePath('/supply')
+}

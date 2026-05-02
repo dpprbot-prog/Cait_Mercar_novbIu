@@ -389,15 +389,9 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:24}}>
-              <div>
-                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ЛОГИН (@)</label>
-                <input value={editingWorker.login || ''} onChange={e=>setEditingWorker({...editingWorker, login:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
-              </div>
-              <div>
-                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>НОВЫЙ ПАРОЛЬ</label>
-                <input type="password" value={newPassword} onChange={e=>setNewPassword(e.target.value)} placeholder="Без изменений" style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
-              </div>
+            <div style={{marginBottom:24}}>
+              <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ЛОГИН (@)</label>
+              <input value={editingWorker.login || ''} onChange={e=>setEditingWorker({...editingWorker, login:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
             </div>
 
             <div style={{display:'flex', gap:12}}>
