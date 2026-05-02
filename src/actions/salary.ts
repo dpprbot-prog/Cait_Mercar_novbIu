@@ -2,6 +2,8 @@
 
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
+import { logAction } from './history'
+import { getCurrentUser } from './auth'
 
 export interface WorkerSalaryData {
   id: string
@@ -121,6 +123,16 @@ export async function updateBrigadePot(brigadeId: string, month: number, year: n
     db.prepare('INSERT INTO brigade_pots (brigade_id, month, year, amount) VALUES (?, ?, ?, ?)')
       .run(brigadeId, month, year, amount)
   }
+
+  const admin = await getCurrentUser()
+  const b = db.prepare('SELECT name FROM brigades WHERE id = ?').get(brigadeId) as any
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'update',
+    entity_type: 'salary',
+    entity_id: brigadeId,
+    details: `Обновление фонда (общака) бригады "${b?.name}" на ${amount}`
+  })
   revalidatePath('/salary')
 }
 
@@ -128,6 +140,16 @@ export async function updateBrigadePot(brigadeId: string, month: number, year: n
 // Generally we shouldn't overwrite parsed hours, but if needed we can adjust baseRate
 export async function updateWorkerRate(workerId: string, newRate: number) {
   db.prepare('UPDATE workers SET base_rate = ? WHERE id = ?').run(newRate, workerId)
+  
+  const admin = await getCurrentUser()
+  const w = db.prepare('SELECT name FROM workers WHERE id = ?').get(workerId) as any
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'update',
+    entity_type: 'salary',
+    entity_id: workerId,
+    details: `Изменение ставки сотрудника "${w?.name}": ${newRate}`
+  })
   revalidatePath('/salary')
 }
 
@@ -141,6 +163,17 @@ export async function addFinanceRecord(workerId: string, type: 'advance' | 'bonu
     INSERT INTO financial_records (worker_id, type, amount, date)
     VALUES (?, ?, ?, ?)
   `).run(workerId, type, amount, dateStr)
+  
+  const admin = await getCurrentUser()
+  const w = db.prepare('SELECT name FROM workers WHERE id = ?').get(workerId) as any
+  const typeLabel = { advance: 'Аванс', bonus: 'Премия', penalty: 'Штраф' }
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'update',
+    entity_type: 'finance',
+    entity_id: workerId,
+    details: `${typeLabel[type]}: ${amount} для ${w?.name}`
+  })
   
   revalidatePath('/salary')
 }

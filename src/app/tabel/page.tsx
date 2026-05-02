@@ -17,7 +17,7 @@ function calcHours(start: string, end: string, lunch: number): number {
   const [sh, sm] = start.split(':').map(Number)
   const [eh, em] = end.split(':').map(Number)
   const totalMin = (eh * 60 + em) - (sh * 60 + sm) - lunch
-  return Math.max(0, Math.round(totalMin / 6) / 10)
+  return Math.max(0, Math.round((totalMin / 60) * 100) / 100)
 }
 
 // ── Component ─────────────────────────────────────────────

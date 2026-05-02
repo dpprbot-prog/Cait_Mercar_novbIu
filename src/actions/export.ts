@@ -113,19 +113,43 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     const dateSuffix = `.${(month + 1).toString().padStart(2, '0')}.${year}`
     worksheet.getRow(1).getCell(7).value = `${monthName} ${year}`
 
-    // 2. Получаем данные сотрудников (с фильтром по бригаде, если есть)
+    // 1.5 Собираем палитру цветов из ячеек D8-D15 (Статистика - цвет)
+    const objectMap = new Map<string, { color: any, rowIndex: number, name: string, totalHours: number, totalDays: number }>()
+    const activeObjects = db.prepare(`
+      SELECT DISTINCT o.id, o.name
+      FROM time_entries te
+      JOIN objects o ON te.object_id = o.id
+      JOIN workers w ON te.worker_id = w.id
+      WHERE te.date LIKE ? ${brigadeId ? 'AND w.brigade_id = ?' : ''}
+      LIMIT 8
+    `).all(`%${dateSuffix}`, ...(brigadeId ? [brigadeId] : [])) as any[]
+
+    activeObjects.forEach((obj, idx) => {
+      const rowIndex = 8 + idx
+      const colorCell = worksheet.getRow(rowIndex).getCell(4) // Колонка D
+      objectMap.set(obj.id, {
+        color: JSON.parse(JSON.stringify(colorCell.fill || {})), // Глубокое копирование стиля
+        rowIndex,
+        name: obj.name,
+        totalHours: 0,
+        totalDays: new Set().size // Просто инициализация
+      })
+    })
+    
+    // Для подсчета уникальных дней по объектам
+    const objectDaysSet = new Map<string, Set<string>>()
+
+    // 2. Получаем данные сотрудников
     let workersQuery = `
       SELECT id, last_name, first_name, patronymic, role, base_rate, name
       FROM workers 
       WHERE is_approved = 1 AND is_blocked = 0
     `
     const params: any[] = []
-
     if (brigadeId) {
       workersQuery += ` AND brigade_id = ?`
       params.push(brigadeId)
     }
-
     workersQuery += ` ORDER BY last_name`
     const workers = db.prepare(workersQuery).all(...params) as any[]
     
@@ -133,7 +157,7 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       ? (db.prepare('SELECT name FROM brigades WHERE id = ?').get(brigadeId) as any)?.name 
       : 'All'
 
-    // 3. Заполняем данные сотрудников (начиная со строки 6)
+    // 3. Заполняем данные сотрудников
     let currentRow = 6 
     let totalAdvances = 0
     let totalPenalties = 0
@@ -147,7 +171,6 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       const fullName = `${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name
       const row = worksheet.getRow(currentRow)
 
-      // P (16): ФИО, Q (17): Должность, M (13): Ставка
       row.getCell(16).value = fullName
       row.getCell(17).value = w.role || ''
       row.getCell(13).value = w.base_rate || 0
@@ -155,66 +178,56 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       let workerHours = 0
       let workerDays = 0
 
-      // Часы по дням (R-AV, 18-48)
       for (let day = 1; day <= 31; day++) {
         const dStr = day < 10 ? `0${day}` : `${day}`
         const dateKey = `${dStr}${dateSuffix}`
-        const entry = db.prepare('SELECT hours_total FROM time_entries WHERE worker_id = ? AND date = ?').get(w.id, dateKey) as { hours_total: number } | undefined
+        const entry = db.prepare('SELECT hours_total, object_id FROM time_entries WHERE worker_id = ? AND date = ?').get(w.id, dateKey) as { hours_total: number, object_id: string } | undefined
         
         const cell = row.getCell(17 + day)
         if (entry && entry.hours_total > 0) {
           cell.value = entry.hours_total
           workerHours += entry.hours_total
           workerDays++
+
+          // Применяем цвет объекта
+          const objData = objectMap.get(entry.object_id)
+          if (objData) {
+            cell.fill = objData.color
+            objData.totalHours += entry.hours_total
+            
+            if (!objectDaysSet.has(entry.object_id)) objectDaysSet.set(entry.object_id, new Set())
+            objectDaysSet.get(entry.object_id)?.add(dateKey)
+          }
         } else {
           cell.value = null
         }
       }
 
-      // N (14): Всего дней, O (15): Итого часов
-      const cellN = row.getCell(14)
-      cellN.value = workerDays
-      
-      const cellO = row.getCell(15)
-      cellO.value = workerHours
-
-      // L (12): Зарплата (Часы * Ставка)
+      const cellN = row.getCell(14); cellN.value = workerDays
+      const cellO = row.getCell(15); cellO.value = workerHours
       const basePay = workerHours * (w.base_rate || 0)
       const cellL = row.getCell(12)
-      // @ts-ignore (сбрасываем внутреннюю модель формулы, если она есть)
+      // @ts-ignore
       if (cellL.model) { cellL.model.formula = undefined; cellL.model.sharedFormula = undefined; }
       cellL.value = basePay
       totalBasePay += basePay
 
-      // Финансы
-      const finances = db.prepare(`
-        SELECT type, amount 
-        FROM financial_records 
-        WHERE worker_id = ? AND date LIKE ?
-      `).all(w.id, `%${dateSuffix}`) as any[]
-      
+      const finances = db.prepare(`SELECT type, amount FROM financial_records WHERE worker_id = ? AND date LIKE ?`).all(w.id, `%${dateSuffix}`) as any[]
       const adv = finances.filter(f => f.type === 'advance').reduce((sum, f) => sum + f.amount, 0)
       const penalty = finances.filter(f => f.type === 'penalty').reduce((sum, f) => sum + f.amount, 0)
       const bonus = finances.filter(f => f.type === 'bonus').reduce((sum, f) => sum + f.amount, 0)
 
-      totalAdvances += adv
-      totalPenalties += penalty
-      totalBonuses += bonus
-
-      // I (9): Авансы, J (10): Штрафы, K (11): Даем за что-то (Бонусы)
+      totalAdvances += adv; totalPenalties += penalty; totalBonuses += bonus
       row.getCell(9).value = adv || null
       row.getCell(10).value = penalty || null
       row.getCell(11).value = bonus || null
       
-      // G (7): Округление
-      const rounding = 0
       const cellG = row.getCell(7)
       // @ts-ignore
       if (cellG.model) { cellG.model.formula = undefined; cellG.model.sharedFormula = undefined; }
-      cellG.value = rounding
+      cellG.value = 0
 
-      // H (8): Заплатить нужно (L + K - J - I + G)
-      const toPay = basePay + bonus - penalty - adv + rounding
+      const toPay = basePay + bonus - penalty - adv
       const cellH = row.getCell(8)
       // @ts-ignore
       if (cellH.model) { cellH.model.formula = undefined; cellH.model.sharedFormula = undefined; }
@@ -236,27 +249,20 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     worksheet.getRow(3).getCell(5).value = totalBonuses
     worksheet.getRow(4).getCell(5).value = potAmount - (totalBasePay + totalBonuses) 
 
-    // 5. Статистика по объектам (B8-E40)
-    // Группируем часы и дни по объектам для выбранных сотрудников
-    const objectStats = db.prepare(`
-      SELECT o.name, SUM(te.hours_total) as total_hours, COUNT(DISTINCT te.date) as total_days
-      FROM time_entries te
-      JOIN objects o ON te.object_id = o.id
-      JOIN workers w ON te.worker_id = w.id
-      WHERE te.date LIKE ? ${brigadeId ? 'AND w.brigade_id = ?' : ''}
-      GROUP BY o.id
-      ORDER BY total_hours DESC
-    `).all(`%${dateSuffix}`, ...(brigadeId ? [brigadeId] : [])) as any[]
-
-    let statsRow = 8
-    for (const stat of objectStats) {
-      if (statsRow > 40) break
-      const row = worksheet.getRow(statsRow)
-      row.getCell(2).value = stat.total_hours // Колонки B
-      row.getCell(3).value = stat.total_days  // Колонки C
-      row.getCell(5).value = stat.name        // Колонки E
-      statsRow++
+    // 5. Статистика по объектам (B8-E15) - очищаем старое и пишем новое
+    for (let r = 8; r <= 15; r++) {
+       const rObj = worksheet.getRow(r)
+       rObj.getCell(2).value = null
+       rObj.getCell(3).value = null
+       rObj.getCell(5).value = null
     }
+
+    objectMap.forEach((data, objId) => {
+      const r = worksheet.getRow(data.rowIndex)
+      r.getCell(2).value = data.totalHours
+      r.getCell(3).value = objectDaysSet.get(objId)?.size || 0
+      r.getCell(5).value = data.name
+    })
 
     const buffer = await workbook.xlsx.writeBuffer()
     return {

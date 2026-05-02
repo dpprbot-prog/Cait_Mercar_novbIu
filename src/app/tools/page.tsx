@@ -4,12 +4,14 @@ import AppLayout from '@/components/AppLayout'
 import {
   Wrench, Plus, X, Search, Check, AlertTriangle, RotateCcw,
   ChevronDown, ChevronUp, Users, User, Camera, Reply,
-  HardHat, FileText, CheckCircle2, Trash, Download
+  HardHat, FileText, CheckCircle2, Trash, Download, Pencil
 } from 'lucide-react'
-import { getTools, addTool, initiateToolTransfer, respondToolTransfer, sendToolToRepair, returnToolFromRepair, requestToolWriteOff, resolveToolWriteOff, ToolItem, ToolStatus, ToolCategory, AssigneeType } from '@/actions/tools'
+import { getTools, addTool, updateTool, initiateToolTransfer, respondToolTransfer, sendToolToRepair, returnToolFromRepair, requestToolWriteOff, resolveToolWriteOff, ToolItem, ToolStatus, ToolCategory, AssigneeType } from '@/actions/tools'
+import { getAuditLogs, AuditLog } from '@/actions/history'
 import { exportToolsExcel } from '@/actions/export'
 import { useAuth } from '@/components/AuthProvider'
 import Modal from '@/components/Modal'
+import { HistoryFeed } from '@/components/HistoryFeed'
 
 // ─────────────────────────────────────────────
 //  Types & Config
@@ -62,6 +64,7 @@ export default function ToolsPage() {
   const [objectsList, setObjectsList] = useState<string[]>([])
 
   const [tools, setTools] = useState<ToolItem[]>([])
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
   
   useEffect(() => {
     refreshData()
@@ -76,6 +79,8 @@ export default function ToolsPage() {
   const refreshData = async () => {
     const data = await getTools()
     setTools(data)
+    const logs = await getAuditLogs({ entity_type: 'tool', limit: 20 })
+    setAuditLogs(logs)
   }
 
   const { user } = useAuth()
@@ -96,6 +101,7 @@ export default function ToolsPage() {
   const [modal, setModal] = useState<{isOpen:boolean, title:string, message:string, type:'info'|'danger'|'warning', onConfirm?:()=>void}>({
     isOpen: false, title: '', message: '', type: 'info'
   })
+  const [editModal, setEditModal] = useState<ToolItem | null>(null)
 
   const [toast, setToast] = useState('')
   const showToast = (m:string) => { setToast(m); setTimeout(()=>setToast(''),3000) }
@@ -134,8 +140,18 @@ export default function ToolsPage() {
     setFName('');setFInv('');setFQty('1')
     setShowAddForm(false)
     showToast(`Добавлено: ${nt.name}`)
-    await addTool(payload)
+    await addTool(payload, currentUser)
     refreshData()
+  }
+
+  const editToolClick = async () => {
+    if (!editModal || !editModal.name.trim()) return
+    const res = await updateTool(editModal.id, editModal, currentUser)
+    if (res.success) {
+      showToast(`Обновлено: ${editModal.name}`)
+      setEditModal(null)
+      refreshData()
+    }
   }
 
   const handleDeleteTool = (id: string, name: string, e: React.MouseEvent) => {
@@ -147,7 +163,7 @@ export default function ToolsPage() {
       type: 'danger',
       onConfirm: async () => {
         import('@/actions/tools').then(async m => {
-          const res = await m.deleteTool(id)
+          const res = await m.deleteTool(id, currentUser)
           if (res.success) {
             showToast('Удалено')
             refreshData()
@@ -195,7 +211,7 @@ export default function ToolsPage() {
       }
     }))
     showToast(accept ? 'Инструмент принят' : 'Передача отклонена')
-    await respondToolTransfer(id, accept, tItem.transfer_to||'', tItem.transfer_toType||'', tItem.transfer_object||tItem.issuedObject||'', tItem.issuedTo||null)
+    await respondToolTransfer(id, accept, tItem.transfer_to||'', tItem.transfer_toType||'', tItem.transfer_object||tItem.issuedObject||'', tItem.issuedTo||null, currentUser)
     refreshData()
   }
 
@@ -204,7 +220,7 @@ export default function ToolsPage() {
     if(!repLoc) return
     setTools(p=>p.map(t=>t.id===id?{...t, status:'repair', repair_location:repLoc, repair_sentDate:todayStr()}:t))
     showToast('Инструмент отправлен в ремонт')
-    await sendToolToRepair(id, repLoc, todayStr())
+    await sendToolToRepair(id, repLoc, todayStr(), currentUser)
     setRepairModal(null); setRepLoc('')
     refreshData()
   }
@@ -212,7 +228,7 @@ export default function ToolsPage() {
   const returnFromRepairClick = async (id:string) => {
     setTools(p=>p.map(t=>t.id===id?{...t, status:'available', repair_location:null, repair_sentDate:null, condition:'good'}:t))
     showToast('Возвращён из ремонта')
-    await returnToolFromRepair(id)
+    await returnToolFromRepair(id, currentUser)
     refreshData()
   }
 
@@ -235,7 +251,7 @@ export default function ToolsPage() {
       return {...t, status:t.issuedTo?'issued':'available', writeoff_reason:null}
     }))
     showToast(approve ? 'Списание подтверждено' : 'Списание отклонено')
-    await resolveToolWriteOff(id, approve, tItem?.issuedTo||null)
+    await resolveToolWriteOff(id, approve, tItem?.issuedTo||null, currentUser)
     refreshData()
   }
 
@@ -313,33 +329,29 @@ export default function ToolsPage() {
               <input placeholder="Название (напр. Перфоратор)" value={fName} onChange={e=>setFName(e.target.value)} style={{gridColumn:'span 2',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
               
               <div style={{position:'relative'}}>
-                <input 
-                  list="tool-cats"
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>КАТЕГОРИЯ</label>
+                <select 
                   value={fCat} 
                   onChange={e=>setFCat(e.target.value as ToolCategory)}
-                  placeholder="Категория..."
                   style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}}
-                />
-                <datalist id="tool-cats">
+                >
                   {(Object.entries(CATEGORIES) as [ToolCategory,{label:string}][]).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-                </datalist>
+                </select>
               </div>
 
-              <input placeholder="Инвентарный № (авто)" value={fInv} onChange={e=>setFInv(e.target.value)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
+              <input placeholder="Инвентарный № (авто)" value={fInv} onChange={e=>setFInv(e.target.value)} style={{marginTop:18, background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
               
               <div style={{position:'relative'}}>
-                <input 
-                  list="tool-conds"
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>СОСТОЯНИЕ</label>
+                <select 
                   value={fCond} 
                   onChange={e=>setFCond(e.target.value as any)}
-                  placeholder="Состояние..."
                   style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}}
-                />
-                <datalist id="tool-conds">
+                >
                   <option value="good">Отличное</option>
                   <option value="fair">Удовлетворительное</option>
                   <option value="bad">Плохое</option>
-                </datalist>
+                </select>
               </div>
 
               <input placeholder="Кол-во" value={fQty} type="number" onChange={e=>setFQty(e.target.value)} style={{background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'8px 12px',color:'#fff',outline:'none'}} />
@@ -466,15 +478,24 @@ export default function ToolsPage() {
                 <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end',minWidth:130}}>
                   <div style={{display:'flex', gap:8, alignItems:'center'}}>
                     {isAdmin && (
-                      <button 
-                        onClick={(e) => handleDeleteTool(tool.id, tool.name, e)} 
-                        title="Удалить инструмент"
-                        style={{width:28, height:28, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(239,68,68,0.1)', color:'var(--red)', border:'1px solid rgba(239,68,68,0.2)', transition:'all 0.2s', cursor:'pointer'}}
-                        onMouseEnter={e => { e.currentTarget.style.background='var(--red)'; e.currentTarget.style.color='#fff'; }}
-                        onMouseLeave={e => { e.currentTarget.style.background='rgba(239,68,68,0.1)'; e.currentTarget.style.color='var(--red)'; }}
-                      >
-                        <Trash size={12}/>
-                      </button>
+                      <div style={{display:'flex', gap:4}}>
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); setEditModal(tool); }} 
+                          title="Редактировать"
+                          style={{width:28, height:28, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(59,130,246,0.1)', color:'var(--blue)', border:'1px solid rgba(59,130,246,0.2)', cursor:'pointer'}}
+                        >
+                          <Pencil size={12}/>
+                        </button>
+                        <button 
+                          onClick={(e) => handleDeleteTool(tool.id, tool.name, e)} 
+                          title="Удалить инструмент"
+                          style={{width:28, height:28, borderRadius:6, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(239,68,68,0.1)', color:'var(--red)', border:'1px solid rgba(239,68,68,0.2)', transition:'all 0.2s', cursor:'pointer'}}
+                          onMouseEnter={e => { e.currentTarget.style.background='var(--red)'; e.currentTarget.style.color='#fff'; }}
+                          onMouseLeave={e => { e.currentTarget.style.background='rgba(239,68,68,0.1)'; e.currentTarget.style.color='var(--red)'; }}
+                        >
+                          <Trash size={12}/>
+                        </button>
+                      </div>
                     )}
                     <span className={`badge-pill ${STATUS_BADGE[tool.status]}`} style={{fontSize:10}}>{STATUS_LABEL[tool.status]}</span>
                   </div>
@@ -605,6 +626,53 @@ export default function ToolsPage() {
         </div>
       )}
 
+      {/* ── EDIT MODAL ── */}
+      {editModal && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',padding:24,width:'100%',maxWidth:450}}>
+            <h3 style={{fontSize:18,color:'#fff',marginBottom:20,display:'flex',alignItems:'center',gap:10}}><Pencil size={20} color="var(--blue)"/> Редактирование</h3>
+            
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+              <div style={{gridColumn:'span 2'}}>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>НАЗВАНИЕ</label>
+                <input value={editModal.name} onChange={e=>setEditModal({...editModal, name:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>КАТЕГОРИЯ</label>
+                <select value={editModal.category} onChange={e=>setEditModal({...editModal, category:e.target.value as any})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}}>
+                  {(Object.entries(CATEGORIES) as [ToolCategory,{label:string}][]).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>ИНВЕНТАРНЫЙ №</label>
+                <input value={editModal.inventoryNum} onChange={e=>setEditModal({...editModal, inventoryNum:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>СОСТОЯНИЕ</label>
+                <select value={editModal.condition} onChange={e=>setEditModal({...editModal, condition:e.target.value as any})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}}>
+                  <option value="good">Отличное</option>
+                  <option value="fair">Удовлетворительное</option>
+                  <option value="bad">Плохое</option>
+                </select>
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>КОЛИЧЕСТВО</label>
+                <input type="number" value={editModal.qty} onChange={e=>setEditModal({...editModal, qty:parseInt(e.target.value)||1})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+            </div>
+
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setEditModal(null)} style={{flex:1,padding:'12px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-muted)',fontWeight:600}}>Отмена</button>
+              <button onClick={editToolClick} style={{flex:2,padding:'12px',background:'var(--blue)',border:'none',borderRadius:6,color:'#fff',fontWeight:700}}>Сохранить изменения</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Modal
         isOpen={modal.isOpen}
         title={modal.title}
@@ -613,6 +681,7 @@ export default function ToolsPage() {
         onClose={() => setModal(p => ({ ...p, isOpen: false }))}
         onConfirm={modal.onConfirm}
       />
+      <HistoryFeed logs={auditLogs} />
     </AppLayout>
   )
 }

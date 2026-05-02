@@ -2,6 +2,8 @@
 
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
+import { logAction } from './history'
+import { getCurrentUser } from './auth'
 
 export type MStatus = 'new' | 'assigned' | 'picked' | 'delivered' | 'accepted'
 export type Priority = 'planned' | 'urgent' | 'days' | 'week'
@@ -110,13 +112,21 @@ export async function createSupplyOrder(
   const insertItem = db.prepare('INSERT INTO supply_items (mid, order_id, name, ordered_qty, assigned_qty, picked_qty, unit, note, m_status, store_name, driver, parent_mid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
   
   const photosStr = order.photos && order.photos.length > 0 ? JSON.stringify(order.photos) : null
-
   db.transaction(() => {
     insertOrder.run(order.id, order.object, order.priority, order.author, order.authorRole, order.comment || null, order.link || null, photosStr, order.createdAt)
     items.forEach(it => {
       insertItem.run(it.mid, order.id, it.name, it.orderedQty, it.assignedQty || null, it.pickedQty || null, it.unit, it.note || null, it.mStatus, it.storeName || null, it.driver || null, it.parentMid || null)
     })
   })()
+  
+  const admin = await getCurrentUser()
+  await logAction({
+    user_name: admin?.name || order.author || 'Система',
+    action_type: 'create',
+    entity_type: 'supply',
+    entity_id: order.id,
+    details: `Создана заявка на снабжение #${order.id} (${order.object})`
+  })
   
   revalidatePath('/supply')
 }
@@ -136,6 +146,20 @@ export async function updateSupplyItem(mid: string, patch: Partial<MatItem>) {
 
   values.push(mid)
   db.prepare(`UPDATE supply_items SET ${sets.join(', ')} WHERE mid = ?`).run(...values)
+  
+  const admin = await getCurrentUser()
+  const it = db.prepare('SELECT name, m_status FROM supply_items WHERE mid = ?').get(mid) as any
+  const statusLabels: any = { assigned: 'Назначено', picked: 'Закуплено', delivered: 'Доставлено', accepted: 'Принято' }
+  
+  if (patch.mStatus) {
+    await logAction({
+      user_name: admin?.name || 'Система',
+      action_type: 'update',
+      entity_type: 'supply',
+      entity_id: mid,
+      details: `Статус "${it?.name}": ${statusLabels[patch.mStatus] || patch.mStatus}`
+    })
+  }
   revalidatePath('/supply')
 }
 

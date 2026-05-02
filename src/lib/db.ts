@@ -187,6 +187,16 @@ function initDb() {
       notify_admin_tasks INTEGER DEFAULT 1,
       FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_name TEXT NOT NULL,
+      action_type TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      details TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
   `)
 
   // Миграция: добавляем колонку is_blocked, если её нет

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Clock, ShoppingCart, DollarSign,
-  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit, Settings
+  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit, Settings, History
 } from 'lucide-react'
 import { 
   getNotifications, 
@@ -24,6 +24,7 @@ const NAV = [
   { href: '/tools',       label: 'Инструмент', icon: Wrench,          roles: ['*'] },
   { href: '/objects',     label: 'Объекты',    icon: Building2,       roles: ['Админ'] },
   { href: '/employees',   label: 'Сотрудники', icon: Users,           roles: ['Админ'] },
+  { href: '/history',     label: 'История',    icon: History,         roles: ['Админ'] },
 ]
 
 import { useAuth } from '@/components/AuthProvider'
@@ -44,6 +45,7 @@ const PAGE_TITLES: Record<string, string> = {
   '/tools':       'Инструмент',
   '/objects':     'Объекты',
   '/employees':   'Сотрудники',
+  '/history':     'История событий',
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

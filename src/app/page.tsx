@@ -5,6 +5,8 @@ import { Clock, ShoppingCart, Users, DollarSign, AlertTriangle, Wrench } from 'l
 import { useAuth } from '@/components/AuthProvider'
 import { getDashboardStats } from '@/actions/common'
 import { getSupplyOrders, Order } from '@/actions/supply'
+import { getAuditLogs, AuditLog } from '@/actions/history'
+import { HistoryFeed } from '@/components/HistoryFeed'
 
 export default function DashboardPage() {
   const { user } = useAuth()
@@ -18,11 +20,13 @@ export default function DashboardPage() {
     sizAlerts: 0
   })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
+  const [globalLogs, setGlobalLogs] = useState<AuditLog[]>([])
 
   useEffect(() => {
     if (user) {
       getDashboardStats(user.id).then(setStats)
       getSupplyOrders().then(orders => setRecentOrders(orders.slice(0, 3)))
+      getAuditLogs({ limit: 10 }).then(setGlobalLogs)
     }
   }, [user])
 
@@ -209,6 +213,10 @@ export default function DashboardPage() {
             <br/><a href="/tools" style={{color:'var(--accent)', fontSize:12, marginTop:8, display:'inline-block'}}>Открыть склад →</a>
           </div>
         </div>
+      </div>
+
+      <div style={{marginTop:24}}>
+        <HistoryFeed logs={globalLogs} />
       </div>
     </AppLayout>
   )

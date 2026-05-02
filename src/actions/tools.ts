@@ -2,6 +2,7 @@
 
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
+import { logAction } from './history'
 
 export type ToolStatus = 'available' | 'issued' | 'repair' | 'lost' | 'written_off' | 'pending_transfer' | 'pending_writeoff'
 export type ToolCategory = 'power' | 'hand' | 'measuring' | 'lifting' | 'welding' | 'concrete' | 'other'
@@ -51,7 +52,7 @@ export async function getTools(): Promise<ToolItem[]> {
   }
 }
 
-export async function addTool(data: Partial<ToolItem>) {
+export async function addTool(data: Partial<ToolItem>, performedBy: string = 'Система') {
   try {
     const id = 't' + Date.now().toString()
     const stmt = db.prepare(`
@@ -62,6 +63,15 @@ export async function addTool(data: Partial<ToolItem>) {
     stmt.run(
       id, data.name, data.category, data.inventoryNum, data.condition, data.status, data.qty, data.unit, data.note || null
     )
+    
+    await logAction({
+      user_name: performedBy,
+      action_type: 'create',
+      entity_type: 'tool',
+      entity_id: id,
+      details: `Добавлен новый инструмент: ${data.name} (${data.inventoryNum})`
+    })
+
     revalidatePath('/tools')
     return { success: true, id }
   } catch (err) {
@@ -83,6 +93,16 @@ export async function initiateToolTransfer(id: string, transferData: {from: stri
       WHERE id = ?
     `)
     stmt.run(transferData.from, transferData.to, transferData.toType, transferData.date, transferData.object || null, id)
+    
+    const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
+    await logAction({
+      user_name: transferData.from,
+      action_type: 'transfer',
+      entity_type: 'tool',
+      entity_id: id,
+      details: `Запрос на передачу "${tool?.name}": ${transferData.from} → ${transferData.to}`
+    })
+
     revalidatePath('/tools')
     return { success: true }
   } catch (e) {
@@ -91,8 +111,9 @@ export async function initiateToolTransfer(id: string, transferData: {from: stri
   }
 }
 
-export async function respondToolTransfer(id: string, accept: boolean, transferTo: string, transferToType: string, transferObject: string, issuedToFallback: string | null) {
+export async function respondToolTransfer(id: string, accept: boolean, transferTo: string, transferToType: string, transferObject: string, issuedToFallback: string | null, performedBy: string = 'Система') {
   try {
+    const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     if (accept) {
       if (transferTo === 'Склад') {
         const stmt = db.prepare(`
@@ -112,6 +133,13 @@ export async function respondToolTransfer(id: string, accept: boolean, transferT
         `)
         stmt.run(transferToType, transferTo, transferObject, d, id)
       }
+      await logAction({
+        user_name: performedBy,
+        action_type: 'transfer',
+        entity_type: 'tool',
+        entity_id: id,
+        details: `Передача "${tool?.name}" принята: новый владелец ${transferTo}`
+      })
     } else {
       // Reject
       const status = issuedToFallback ? 'issued' : 'available'
@@ -122,6 +150,13 @@ export async function respondToolTransfer(id: string, accept: boolean, transferT
         WHERE id = ?
       `)
       stmt.run(status, id)
+      await logAction({
+        user_name: performedBy,
+        action_type: 'transfer',
+        entity_type: 'tool',
+        entity_id: id,
+        details: `Передача "${tool?.name}" отклонена`
+      })
     }
     revalidatePath('/tools')
     return { success: true }
@@ -131,23 +166,43 @@ export async function respondToolTransfer(id: string, accept: boolean, transferT
   }
 }
 
-export async function sendToolToRepair(id: string, location: string, date: string) {
+export async function sendToolToRepair(id: string, location: string, date: string, performedBy: string = 'Система') {
   try {
     const stmt = db.prepare(`
       UPDATE tools SET status = 'repair', repair_location = ?, repair_sentDate = ? WHERE id = ?
     `)
     stmt.run(location, date, id)
+    
+    const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
+    await logAction({
+      user_name: performedBy,
+      action_type: 'repair',
+      entity_type: 'tool',
+      entity_id: id,
+      details: `Инструмент "${tool?.name}" отправлен в ремонт (${location})`
+    })
+
     revalidatePath('/tools')
     return { success: true }
   } catch(e) { return { success: false } }
 }
 
-export async function returnToolFromRepair(id: string) {
+export async function returnToolFromRepair(id: string, performedBy: string = 'Система') {
   try {
     const stmt = db.prepare(`
       UPDATE tools SET status = 'available', condition = 'good', repair_location = null, repair_sentDate = null WHERE id = ?
     `)
     stmt.run(id)
+    
+    const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
+    await logAction({
+      user_name: performedBy,
+      action_type: 'repair',
+      entity_type: 'tool',
+      entity_id: id,
+      details: `Инструмент "${tool?.name}" возвращен из ремонта на склад`
+    })
+
     revalidatePath('/tools')
     return { success: true }
   } catch(e) { return { success: false } }
@@ -160,13 +215,24 @@ export async function requestToolWriteOff(id: string, reason: string, photo: str
       WHERE id = ?
     `)
     stmt.run(reason, photo, requestedBy, date, id)
+    
+    const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
+    await logAction({
+      user_name: requestedBy,
+      action_type: 'writeoff',
+      entity_type: 'tool',
+      entity_id: id,
+      details: `Заявка на списание "${tool?.name}". Причина: ${reason}`
+    })
+
     revalidatePath('/tools')
     return { success: true }
   } catch(e) { return { success: false } }
 }
 
-export async function resolveToolWriteOff(id: string, approve: boolean, issuedToFallback: string | null) {
+export async function resolveToolWriteOff(id: string, approve: boolean, issuedToFallback: string | null, performedBy: string = 'Система') {
   try {
+    const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     if (approve) {
       const stmt = db.prepare(`
         UPDATE tools SET status = 'written_off', assigneeType = null, issuedTo = null, issuedObject = null,
@@ -174,6 +240,13 @@ export async function resolveToolWriteOff(id: string, approve: boolean, issuedTo
         WHERE id = ?
       `)
       stmt.run(id)
+      await logAction({
+        user_name: performedBy,
+        action_type: 'writeoff',
+        entity_type: 'tool',
+        entity_id: id,
+        details: `Списание "${tool?.name}" ОДОБРЕНО`
+      })
     } else {
       const status = issuedToFallback ? 'issued' : 'available'
       const stmt = db.prepare(`
@@ -182,19 +255,68 @@ export async function resolveToolWriteOff(id: string, approve: boolean, issuedTo
         WHERE id = ?
       `)
       stmt.run(status, id)
+      await logAction({
+        user_name: performedBy,
+        action_type: 'writeoff',
+        entity_type: 'tool',
+        entity_id: id,
+        details: `Списание "${tool?.name}" ОТКЛОНЕНО`
+      })
     }
     revalidatePath('/tools')
     return { success: true }
   } catch (e) { return { success: false } }
 }
 
-export async function deleteTool(id: string) {
+export async function deleteTool(id: string, performedBy: string = 'Система') {
   try {
+    const tool = db.prepare('SELECT name, inventoryNum FROM tools WHERE id = ?').get(id) as any
     db.prepare('DELETE FROM tools WHERE id = ?').run(id)
+    
+    await logAction({
+      user_name: performedBy,
+      action_type: 'delete',
+      entity_type: 'tool',
+      entity_id: id,
+      details: `Удален инструмент: ${tool?.name} (${tool?.inventoryNum})`
+    })
+
     revalidatePath('/tools')
     return { success: true }
   } catch (err) {
     console.error('Failed to delete tool:', err)
+    return { success: false }
+  }
+}
+
+export async function updateTool(id: string, data: Partial<ToolItem>, performedBy: string = 'Система') {
+  try {
+    const old = db.prepare('SELECT * FROM tools WHERE id = ?').get(id) as any
+    const stmt = db.prepare(`
+      UPDATE tools SET 
+        name = ?, category = ?, inventoryNum = ?, condition = ?, qty = ?, unit = ?, note = ?
+      WHERE id = ?
+    `)
+    stmt.run(data.name, data.category, data.inventoryNum, data.condition, data.qty, data.unit, data.note || null, id)
+    
+    let changes = []
+    if (old.name !== data.name) changes.push(`название: ${old.name} -> ${data.name}`)
+    if (old.inventoryNum !== data.inventoryNum) changes.push(`инв. №: ${old.inventoryNum} -> ${data.inventoryNum}`)
+    if (old.condition !== data.condition) changes.push(`состояние: ${old.condition} -> ${data.condition}`)
+    if (old.qty !== data.qty) changes.push(`кол-во: ${old.qty} -> ${data.qty}`)
+
+    await logAction({
+      user_name: performedBy,
+      action_type: 'update',
+      entity_type: 'tool',
+      entity_id: id,
+      details: `Редактирование "${data.name}". Изменено: ${changes.join(', ') || 'без изменений'}`
+    })
+
+    revalidatePath('/tools')
+    return { success: true }
+  } catch (err) {
+    console.error('Failed to update tool:', err)
     return { success: false }
   }
 }

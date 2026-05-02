@@ -4,11 +4,15 @@ import AppLayout from '@/components/AppLayout'
 import {
   Plus, X, HardHat, Shield, Search, AlertTriangle,
   Check, RotateCcw, User, Calendar, Package,
-  ChevronDown, ChevronUp, CheckSquare, Square, Send, Filter
+  ChevronDown, ChevronUp, CheckSquare, Square, Send, Filter,
+  Pencil, Trash
 } from 'lucide-react'
 
-import { getSizItems, issueSizItem, updateSizStatus, PPEItem, PPECategory, PPEStatus } from '@/actions/siz'
+import { getSizItems, issueSizItem, updateSizStatus, deleteSizItem, updateSizItem, PPEItem, PPECategory, PPEStatus } from '@/actions/siz'
+import { getAuditLogs, AuditLog } from '@/actions/history'
 import { getWorkers, getObjects } from '@/actions/common'
+import { useAuth } from '@/components/AuthProvider'
+import { HistoryFeed } from '@/components/HistoryFeed'
 
 // ─────────────────────────────────────────────
 //  Config
@@ -51,16 +55,24 @@ export default function PPEPage() {
   const [items, setItems]       = useState<PPEItem[]>([])
   const [dbWorkers, setDbWorkers] = useState<any[]>([])
   const [dbObjects, setDbObjects] = useState<string[]>([])
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([])
+  
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'Админ'
+  const isSklad = user?.role === 'Склад'
+  const currentUser = isAdmin ? 'Админ' : isSklad ? 'Склад' : user?.name || 'Система'
   
   const loadInitial = async () => {
-    const [siz, workers, objects] = await Promise.all([
+    const [siz, workers, objects, logs] = await Promise.all([
       getSizItems(),
       getWorkers(),
-      getObjects()
+      getObjects(),
+      getAuditLogs({ entity_type: 'siz', limit: 20 })
     ])
     setItems(siz)
     setDbWorkers(workers)
     setDbObjects(objects)
+    setAuditLogs(logs)
   }
 
   useEffect(() => { loadInitial() }, [])
@@ -71,6 +83,7 @@ export default function PPEPage() {
   const [showForm, setShowForm]   = useState(false)
   const [toast, setToast]         = useState('')
   const [expandedWorkers, setExpW] = useState<Set<string>>(new Set())
+  const [editModal, setEditModal] = useState<PPEItem | null>(null)
 
   // Form state
   const [fName,    setFName]    = useState('')
@@ -125,11 +138,12 @@ export default function PPEPage() {
     const dStr = status==='returned'?todayStr():undefined
     setItems(prev=>prev.map(i=>i.id===id?{...i,status,returnedDate:status==='returned'?todayStr():i.returnedDate}:i))
     showToast(status==='returned'?'Отмечено как возвращено':status==='lost'?'Отмечена утеря':'Статус обновлён')
-    await updateSizStatus(id, status, dStr)
+    await updateSizStatus(id, status, dStr, currentUser)
+    refreshSiz()
   }
 
   const issueItem = async () => {
-    if(!fName.trim()||!fWorker||!fObject) return
+    if(!fName.trim()||!fWorker) return
     const today = todayStr()
     const payload = {
       name:fName.trim(), category:fCat, worker:fWorker, object:fObject,
@@ -146,9 +160,38 @@ export default function PPEPage() {
     setShowForm(false)
     showToast(`Выдано: ${ni.name} → ${ni.worker}`)
     
-    const res = await issueSizItem(payload)
+    const res = await issueSizItem(payload, currentUser)
     if(res.success && res.id) {
        setItems(p=>p.map(i=>i.id===ni.id?{...i,id:res.id!}:i))
+       refreshSiz()
+    }
+  }
+
+  const handleDeleteSiz = async (id: string, name: string) => {
+    if (!confirm(`Вы уверены, что хотите удалить запись о выдаче "${name}"?`)) return
+    const res = await deleteSizItem(id, currentUser)
+    if (res.success) {
+      showToast('Запись удалена')
+      refreshSiz()
+    }
+  }
+
+  const refreshSiz = async () => {
+    const [data, logs] = await Promise.all([
+      getSizItems(),
+      getAuditLogs({ entity_type: 'siz', limit: 20 })
+    ])
+    setItems(data)
+    setAuditLogs(logs)
+  }
+
+  const editSizClick = async () => {
+    if (!editModal || !editModal.name.trim()) return
+    const res = await updateSizItem(editModal.id, editModal, currentUser)
+    if (res.success) {
+      showToast('Данные обновлены')
+      setEditModal(null)
+      refreshSiz()
     }
   }
 
@@ -277,8 +320,8 @@ export default function PPEPage() {
 
             <div style={{display:'flex',gap:10}}>
               <button onClick={()=>setShowForm(false)} style={{flex:1,padding:'12px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:6,color:'rgba(255,255,255,0.5)',fontWeight:600,cursor:'pointer',fontSize:13}}>Отмена</button>
-              <button onClick={issueItem} disabled={!fName.trim()||!fWorker||!fObject}
-                style={{flex:3,padding:'13px',border:'none',borderRadius:6,background:(!fName.trim()||!fWorker||!fObject)?'rgba(255,255,255,0.06)':'var(--accent)',color:(!fName.trim()||!fWorker||!fObject)?'rgba(255,255,255,0.2)':'#fff',fontWeight:800,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+              <button onClick={issueItem} disabled={!fName.trim()||!fWorker}
+                style={{flex:3,padding:'13px',border:'none',borderRadius:6,background:(!fName.trim()||!fWorker)?'rgba(255,255,255,0.06)':'var(--accent)',color:(!fName.trim()||!fWorker)?'rgba(255,255,255,0.2)':'#fff',fontWeight:800,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
                 <Check size={16}/> Выдать
               </button>
             </div>
@@ -351,7 +394,7 @@ export default function PPEPage() {
                             {item.size&&<span style={{marginLeft:6,fontSize:11,color:'rgba(255,255,255,0.4)',background:'rgba(255,255,255,0.06)',borderRadius:4,padding:'1px 6px'}}>{item.size}</span>}
                           </div>
                           <div style={{fontSize:12,color:'rgba(255,255,255,0.4)',display:'flex',gap:8,flexWrap:'wrap'}}>
-                            <span>📍 {item.object}</span>
+                            <span>📍 {item.object || 'Не указан'}</span>
                             <span>Выдано: {item.issuedDate}</span>
                             <span style={{color:expired?'#ef4444':warn?'#eab308':'rgba(255,255,255,0.4)'}}>
                               {expired?'🚨 Срок истёк!':warn?`⏰ Через ${dl} дн.`:`До ${item.expiryDate}`}
@@ -361,15 +404,15 @@ export default function PPEPage() {
                         </div>
                         <div style={{fontWeight:800,fontSize:18,color:'#fff'}}>{item.qty} <span style={{fontSize:12,fontWeight:500,color:'rgba(255,255,255,0.4)'}}>{item.unit}</span></div>
                         <div style={{display:'flex',gap:6,flexShrink:0}}>
-                          <button onClick={()=>markStatus(item.id,'returned')}
-                            title="Возврат"
-                            style={{padding:'7px 12px',background:'rgba(59,130,246,0.12)',border:'1px solid rgba(59,130,246,0.25)',borderRadius:6,color:'#60a5fa',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-                            <RotateCcw size={12}/> Возврат
+                          <button onClick={()=>setEditModal(item)}
+                            title="Редактировать"
+                            style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(59,130,246,0.1)',color:'var(--blue)',border:'1px solid rgba(59,130,246,0.2)',cursor:'pointer'}}>
+                            <Pencil size={12}/>
                           </button>
-                          <button onClick={()=>markStatus(item.id,'lost')}
-                            title="Утеря"
-                            style={{padding:'7px 10px',background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:6,color:'#ef4444',fontSize:11,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',gap:4}}>
-                            <X size={12}/> Утеря
+                          <button onClick={()=>handleDeleteSiz(item.id, item.name)}
+                            title="Удалить"
+                            style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(239,68,68,0.1)',color:'var(--red)',border:'1px solid rgba(239,68,68,0.2)',cursor:'pointer'}}>
+                            <Trash size={12}/>
                           </button>
                         </div>
                       </div>
@@ -405,13 +448,19 @@ export default function PPEPage() {
                     </div>
                   </td>
                   <td style={{padding:'11px 14px',color:'rgba(255,255,255,0.7)'}}>{item.worker}</td>
-                  <td style={{padding:'11px 14px',color:'rgba(255,255,255,0.5)',fontSize:12}}>{item.object}</td>
+                  <td style={{padding:'11px 14px',color:'rgba(255,255,255,0.5)',fontSize:12}}>{item.object || '—'}</td>
                   <td style={{padding:'11px 14px',color:'#fff',fontWeight:700}}>{item.qty} {item.unit}</td>
                   <td style={{padding:'11px 14px'}}>
                     <span className={`badge-pill ${STATUS_BADGE[item.status]}`}>{STATUS_LABEL[item.status]}</span>
                   </td>
                   <td style={{padding:'11px 14px',color:'rgba(255,255,255,0.4)',fontSize:12}}>
                     {item.returnedDate||item.expiryDate}
+                  </td>
+                  <td style={{padding:'11px 14px'}}>
+                    <div style={{display:'flex',gap:6}}>
+                      <button onClick={()=>setEditModal(item)} style={{background:'none',border:'none',color:'var(--blue)',cursor:'pointer'}}><Pencil size={14}/></button>
+                      <button onClick={()=>handleDeleteSiz(item.id, item.name)} style={{background:'none',border:'none',color:'var(--red)',cursor:'pointer'}}><Trash size={14}/></button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -420,11 +469,79 @@ export default function PPEPage() {
         </div>
       )}
 
+      {/* ── EDIT MODAL ── */}
+      {editModal && (
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+          <div style={{background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',padding:24,width:'100%',maxWidth:450}}>
+            <h3 style={{fontSize:18,color:'#fff',marginBottom:20,display:'flex',alignItems:'center',gap:10}}><Pencil size={20} color="var(--blue)"/> Редактирование СИЗ</h3>
+            
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+              <div style={{gridColumn:'span 2'}}>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>НАИМЕНОВАНИЕ</label>
+                <input value={editModal.name} onChange={e=>setEditModal({...editModal, name:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>СОТРУДНИК</label>
+                <input list="edit-siz-workers" value={editModal.worker} onChange={e=>setEditModal({...editModal, worker:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+                <datalist id="edit-siz-workers">
+                  {dbWorkers.map(w=><option key={w.id} value={`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}/>)}
+                </datalist>
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>ОБЪЕКТ</label>
+                <input list="edit-siz-objects" value={editModal.object} onChange={e=>setEditModal({...editModal, object:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+                <datalist id="edit-siz-objects">
+                  {dbObjects.map(o=><option key={o} value={o}/>)}
+                </datalist>
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>КОЛ-ВО</label>
+                <input type="number" value={editModal.qty} onChange={e=>setEditModal({...editModal, qty:parseInt(e.target.value)||1})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>РАЗМЕР</label>
+                <input value={editModal.size || ''} onChange={e=>setEditModal({...editModal, size:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>ДАТА ВЫДАЧИ</label>
+                <input type="text" placeholder="ДД.ММ.ГГГГ" value={editModal.issuedDate} onChange={e=>setEditModal({...editModal, issuedDate:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>ДАТА ИСТЕЧЕНИЯ</label>
+                <input type="text" placeholder="ДД.ММ.ГГГГ" value={editModal.expiryDate} onChange={e=>setEditModal({...editModal, expiryDate:e.target.value})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}} />
+              </div>
+
+              <div>
+                <label style={{display:'block',fontSize:11,color:'var(--text-muted)',marginBottom:4,fontWeight:600}}>СТАТУС</label>
+                <select value={editModal.status} onChange={e=>setEditModal({...editModal, status:e.target.value as any})} style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px',color:'#fff',outline:'none'}}>
+                  <option value="active">Выдано (Активен)</option>
+                  <option value="expired">Истёк срок</option>
+                  <option value="returned">Возвращено</option>
+                  <option value="lost">Утеряно</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{display:'flex',gap:10}}>
+              <button onClick={()=>setEditModal(null)} style={{flex:1,padding:'12px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-muted)',fontWeight:600}}>Отмена</button>
+              <button onClick={editSizClick} style={{flex:2,padding:'12px',background:'var(--blue)',border:'none',borderRadius:6,color:'#fff',fontWeight:700}}>Сохранить</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast&&(
         <div style={{position:'fixed',bottom:24,right:24,background:'var(--bg-elevated)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'var(--radius)',padding:'12px 18px',color:'#fff',fontSize:13,fontWeight:600,zIndex:500,boxShadow:'0 8px 32px rgba(0,0,0,0.4)',display:'flex',alignItems:'center',gap:8}}>
           <Check size={15} color="var(--green)"/> {toast}
         </div>
       )}
+      <HistoryFeed logs={auditLogs} />
     </AppLayout>
   )
 }
