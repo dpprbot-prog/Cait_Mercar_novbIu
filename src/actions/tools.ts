@@ -40,6 +40,7 @@ export interface ToolItem {
   writeoff_photo?: string | null
   writeoff_requestedBy?: string | null
   writeoff_date?: string | null
+  photo_url?: string | null
 }
 
 export async function getTools(): Promise<ToolItem[]> {
@@ -57,11 +58,11 @@ export async function addTool(data: Partial<ToolItem>, performedBy: string = 'С
     const id = 't' + Date.now().toString()
     const stmt = db.prepare(`
       INSERT INTO tools (
-        id, name, category, inventoryNum, condition, status, qty, unit, note
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        id, name, category, inventoryNum, condition, status, qty, unit, note, photo_url
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     stmt.run(
-      id, data.name, data.category, data.inventoryNum, data.condition, data.status, data.qty, data.unit, data.note || null
+      id, data.name, data.category, data.inventoryNum, data.condition, data.status, data.qty, data.unit, data.note || null, data.photo_url || null
     )
     
     await logAction({
@@ -89,10 +90,11 @@ export async function initiateToolTransfer(id: string, transferData: {from: stri
         transfer_to = ?,
         transfer_toType = ?,
         transfer_date = ?,
-        transfer_object = ?
+        transfer_object = ?,
+        photo_url = ?
       WHERE id = ?
     `)
-    stmt.run(transferData.from, transferData.to, transferData.toType, transferData.date, transferData.object || null, id)
+    stmt.run(transferData.from, transferData.to, transferData.toType, transferData.date, transferData.object || null, (transferData as any).photo_url || null, id)
     
     const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     await logAction({
@@ -294,10 +296,10 @@ export async function updateTool(id: string, data: Partial<ToolItem>, performedB
     const old = db.prepare('SELECT * FROM tools WHERE id = ?').get(id) as any
     const stmt = db.prepare(`
       UPDATE tools SET 
-        name = ?, category = ?, inventoryNum = ?, condition = ?, qty = ?, unit = ?, note = ?
+        name = ?, category = ?, inventoryNum = ?, condition = ?, qty = ?, unit = ?, note = ?, photo_url = ?
       WHERE id = ?
     `)
-    stmt.run(data.name, data.category, data.inventoryNum, data.condition, data.qty, data.unit, data.note || null, id)
+    stmt.run(data.name, data.category, data.inventoryNum, data.condition, data.qty, data.unit, data.note || null, data.photo_url || null, id)
     
     let changes = []
     if (old.name !== data.name) changes.push(`название: ${old.name} -> ${data.name}`)

@@ -60,7 +60,7 @@ export default function AuthScreen() {
       patronymic: rPatronymic.trim(),
       height: rHeight ? parseInt(rHeight) : undefined,
       clothing_size: rClothing,
-      shoe_size: rShoe ? parseInt(rShoe) : undefined
+      shoe_size: rShoe || undefined
     })
 
     if (!res.success) {

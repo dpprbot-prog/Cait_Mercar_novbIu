@@ -64,6 +64,25 @@ export default function HistoryPage() {
     setLoading(false)
   }
 
+  const handleExport = () => {
+    const headers = ['Дата', 'Пользователь', 'Раздел', 'Действие', 'Детали', 'ID']
+    const rows = logs.map(l => [
+      new Date(l.created_at).toLocaleString('ru-RU'),
+      l.user_name,
+      ENTITY_MAP[l.entity_type]?.label || l.entity_type,
+      ACTION_MAP[l.action_type]?.label || l.action_type,
+      l.details.replace(/"/g, '""'),
+      l.entity_id || ''
+    ])
+    
+    const csvContent = "\uFEFF" + [headers, ...rows].map(r => r.map(c => `"${c}"`).join(';')).join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(blob)
+    link.download = `history_export_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+  }
+
   useEffect(() => {
     loadData()
   }, [entityType, actionType, userName, startDate, endDate, page])
@@ -93,6 +112,9 @@ export default function HistoryPage() {
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-sm" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff' }} onClick={resetFilters}>
             <RefreshCcw size={14} /> Сбросить
+          </button>
+          <button className="btn btn-sm" style={{ background: '#22c55e22', border: '1px solid #22c55e44', color: '#22c55e' }} onClick={handleExport}>
+            <Download size={14} /> Экспорт CSV
           </button>
         </div>
       </div>
@@ -242,7 +264,7 @@ export default function HistoryPage() {
                       </td>
                       <td style={{ padding: '16px 20px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyCenter: 'center', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.6)' }}>
                             {log.user_name.slice(0, 2).toUpperCase()}
                           </div>
                           <span style={{ color: '#fff', fontWeight: 600 }}>{log.user_name}</span>

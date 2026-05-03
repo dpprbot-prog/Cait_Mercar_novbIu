@@ -19,7 +19,7 @@ export interface WorkerProfile {
   brigade_id: string | null
   height: number | null
   clothing_size: string | null
-  shoe_size: number | null
+  shoe_size: string | null
   is_blocked: number
   is_approved: number
 }

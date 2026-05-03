@@ -117,6 +117,7 @@ export default function ToolsPage() {
   const [trToType, setTrToType] = useState<AssigneeType>('worker')
   const [trTo, setTrTo] = useState('')
   const [trObj, setTrObj] = useState('')
+  const [trPhoto, setTrPhoto] = useState('')
 
   // Repair Form
   const [repLoc, setRepLoc] = useState('')
@@ -189,8 +190,8 @@ export default function ToolsPage() {
     showToast(`Отправлен запрос на передачу: ${trTo}`)
     
     const obj = trObj || tools.find(t=>t.id===id)?.issuedObject || undefined
-    await initiateToolTransfer(id, {from: currentUser, to: trTo, toType: trToType, date: dt, object: obj})
-    setTransferModal(null); setTrTo(''); setTrObj('')
+    await initiateToolTransfer(id, {from: currentUser, to: trTo, toType: trToType, date: dt, object: obj, photo_url: trPhoto} as any)
+    setTransferModal(null); setTrTo(''); setTrObj(''); setTrPhoto('')
     refreshData()
   }
 
@@ -437,7 +438,15 @@ export default function ToolsPage() {
                 {/* Inv + Condition */}
                 <div style={{flexShrink:0,textAlign:'center',width:60}}>
                   <div style={{fontSize:10,color:'var(--text-muted)',marginBottom:2}}>{tool.inventoryNum}</div>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:COND_COLOR[tool.condition],margin:'0 auto'}}/>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:COND_COLOR[tool.condition],margin:'0 auto', marginBottom:6}}/>
+                  {tool.photo_url && (
+                    <div 
+                      onClick={() => tool.photo_url && window.open(tool.photo_url, '_blank')}
+                      style={{width:32, height:32, borderRadius:4, overflow:'hidden', margin:'0 auto', border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer'}}
+                    >
+                      <img src={tool.photo_url} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="Инструмент"/>
+                    </div>
+                  )}
                 </div>
 
                 {/* Info */}
@@ -581,6 +590,19 @@ export default function ToolsPage() {
               <datalist id="tr-obj-list">
                 {objectsList.map(o=><option key={o} value={o}/>)}
               </datalist>
+            </div>
+
+            <div style={{position:'relative', marginBottom:16}}>
+              <label style={{display:'block', fontSize:11, color:'var(--text-muted)', marginBottom:4, fontWeight:600}}>ФОТО (URL - необязательно)</label>
+              <div style={{position:'relative'}}>
+                <Camera size={14} style={{position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)'}}/>
+                <input 
+                  value={trPhoto} 
+                  onChange={e=>setTrPhoto(e.target.value)} 
+                  placeholder="https://image-link.com/..."
+                  style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'10px 10px 10px 32px',fontSize:13,color:'#fff',outline:'none'}}
+                />
+              </div>
             </div>
 
             <div style={{display:'flex',gap:10}}>

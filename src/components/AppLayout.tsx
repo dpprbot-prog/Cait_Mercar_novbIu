@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Clock, ShoppingCart, DollarSign,
-  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit, Settings, History
+  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit, Settings, History, HandCoins
 } from 'lucide-react'
 import { 
   getNotifications, 
@@ -13,6 +13,7 @@ import {
   getNotificationSettings, 
   updateNotificationSettings 
 } from '@/actions/notifications'
+import { updateWorkerAdmin } from '@/actions/admin'
 import Modal from './Modal'
 
 const NAV = [
@@ -20,6 +21,7 @@ const NAV = [
   { href: '/tabel',       label: 'Табель',     icon: Clock,           roles: ['*'] },
   { href: '/supply',      label: 'Снабжение',  icon: ShoppingCart,    roles: ['Админ', 'Склад', 'Мастер', 'Бригадир'] },
   { href: '/salary',      label: 'Зарплата',   icon: DollarSign,      roles: ['Админ'] },
+  { href: '/advances',    label: 'Авансы',     icon: HandCoins,       roles: ['Админ'] },
   { href: '/siz',         label: 'СИЗ',        icon: Shield,          roles: ['*'] },
   { href: '/tools',       label: 'Инструмент', icon: Wrench,          roles: ['*'] },
   { href: '/objects',     label: 'Объекты',    icon: Building2,       roles: ['Админ'] },
@@ -115,6 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }, [user, pathname, router])
 
   const handleUpdateProfile = async () => {
+    if (!user) return
     const res = await updateWorkerAdmin(user.id, {
       ...user,
       height: Number(pH),

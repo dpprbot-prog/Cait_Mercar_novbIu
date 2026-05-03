@@ -49,7 +49,8 @@ export default function SupplyPage() {
   const [orders,  setOrders]  = useState<Order[]>([])
   const [view,    setView]    = useState<'supply' | 'driver' | 'overview'>('supply')
   const [search,  setSearch]  = useState('')
-  const [stFilter,setStFilter]= useState<'all'|'new'|'assigned'|'picked'>('all')
+  const [stFilter,setStFilter]= useState<'all'|'new'|'assigned'|'picked'|'archive'>('all')
+  const [overviewFilter, setOverviewFilter] = useState<'active'|'archived'>('active')
   const [toast,   setToast]   = useState('')
   const [selectedMids, setSelMids] = useState<Set<string>>(new Set())
   const [bulkStore,   setBulkStore]  = useState('')
@@ -60,6 +61,13 @@ export default function SupplyPage() {
   const [dbObjects, setDbObjects] = useState<string[]>([])
   const [dbDrivers, setDbDrivers] = useState<{name:string}[]>([])
   const [dbStores,  setDbStores]  = useState<{name:string}[]>([])
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      const isComplete = o.items.length > 0 && o.items.every(it => ['delivered','accepted'].includes(it.mStatus))
+      return overviewFilter === 'active' ? !isComplete : isComplete
+    })
+  }, [orders, overviewFilter])
 
   // Modals
   const [splitModal, setSplitModal] = useState<{mid:string;orderId:string}|null>(null)
@@ -186,6 +194,7 @@ export default function SupplyPage() {
     if(stFilter==='new')      list = list.filter(i=>i.mStatus==='new')
     if(stFilter==='assigned') list = list.filter(i=>i.mStatus==='assigned')
     if(stFilter==='picked')   list = list.filter(i=>i.mStatus==='picked')
+    if(stFilter==='archive')  list = list.filter(i=>['delivered','accepted'].includes(i.mStatus))
     else if(stFilter==='all') list = list.filter(i=>!['delivered','accepted'].includes(i.mStatus))
     if(search){const q=search.toLowerCase();list=list.filter(i=>i.name.toLowerCase().includes(q)||i.object.toLowerCase().includes(q)||i.orderId.includes(q)||(i.storeName?.toLowerCase().includes(q)??false))}
     return list
@@ -224,20 +233,28 @@ export default function SupplyPage() {
   const itemsByStore  = useMemo(()=>{
     const m:Record<string,FlatItem[]>={}
     orders.forEach(o=>o.items.forEach(it=>{
-      if(it.mStatus==='assigned'&&it.storeName){if(!m[it.storeName])m[it.storeName]=[];m[it.storeName].push({...it,orderId:o.id,object:o.object,priority:o.priority})}
+      if(it.mStatus==='assigned' && it.storeName && it.driver){ // Только если назначен и магазин, и водитель
+        if(!m[it.storeName]) m[it.storeName]=[];
+        m[it.storeName].push({...it,orderId:o.id,object:o.object,priority:o.priority})
+      }
     })); return m
   },[orders])
+
   const itemsByObj = useMemo(()=>{
     const m:Record<string,FlatItem[]>={}
     orders.forEach(o=>o.items.forEach(it=>{
-      if(it.mStatus==='picked'){if(!m[o.object])m[o.object]=[];m[o.object].push({...it,orderId:o.id,object:o.object,priority:o.priority})}
+      if(it.mStatus==='picked' && it.driver){ // Только если у товара есть водитель
+        if(!m[o.object]) m[o.object]=[];
+        m[o.object].push({...it,orderId:o.id,object:o.object,priority:o.priority})
+      }
     })); return m
   },[orders])
 
 
 
   const submitOrder = async () => {
-    const valid = fItems.filter(m=>m.name.trim())
+    // Фильтруем только те позиции, где есть имя И количество больше 0
+    const valid = fItems.filter(m => m.name.trim() && parseFloat(m.qty) > 0)
     if(!fObj || !valid.length || !user) return
     
     const newOrderId = String(Math.floor(Math.random()*900)+100) 
@@ -256,7 +273,7 @@ export default function SupplyPage() {
     loadData()
   }
 
-  const fValid = fItems.filter(m=>m.name.trim())
+  const fValid = fItems.filter(m => m.name.trim() && parseFloat(m.qty) > 0)
 
   const CELL = {padding:'12px 14px',borderBottom:'1px solid var(--border)'}
 
@@ -452,8 +469,8 @@ export default function SupplyPage() {
               </div>
               <div style={{display:'flex',gap:10}}>
                 <button onClick={()=>setSplitModal(null)} style={{flex:1,padding:'12px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'var(--radius-sm)',color:'rgba(255,255,255,0.6)',fontWeight:600,cursor:'pointer',fontSize:13}}>Отмена</button>
-                <button onClick={confirmSplit} disabled={!splitQty||!splitStore||!splitDriver}
-                  style={{flex:2,padding:'12px',background:(!splitQty||!splitStore||!splitDriver)?'rgba(255,255,255,0.06)':'var(--accent)',color:(!splitQty||!splitStore||!splitDriver)?'rgba(255,255,255,0.2)':'#fff',border:'none',borderRadius:'var(--radius-sm)',fontWeight:800,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
+                <button onClick={confirmSplit} disabled={!splitQty||parseFloat(splitQty)<=0||!splitStore||!splitDriver}
+                  style={{flex:2,padding:'12px',background:(!splitQty||parseFloat(splitQty)<=0||!splitStore||!splitDriver)?'rgba(255,255,255,0.06)':'var(--accent)',color:(!splitQty||parseFloat(splitQty)<=0||!splitStore||!splitDriver)?'rgba(255,255,255,0.2)':'#fff',border:'none',borderRadius:'var(--radius-sm)',fontWeight:800,fontSize:14,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8}}>
                   <Check size={15}/> Назначить
                 </button>
               </div>
@@ -517,10 +534,10 @@ export default function SupplyPage() {
               <input placeholder="Поиск материала, объекта..." value={search} onChange={e=>setSearch(e.target.value)}
                 style={{width:'100%',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'var(--radius-sm)',padding:'8px 12px 8px 32px',fontSize:13,color:'#fff',outline:'none'}}/>
             </div>
-            {(['all','new','assigned','picked'] as const).map(f=>(
+            {(['all','new','assigned','picked','archive'] as const).map(f=>(
               <button key={f} onClick={()=>setStFilter(f)}
                 style={{padding:'7px 14px',borderRadius:20,fontSize:12,fontWeight:700,cursor:'pointer',border:'1px solid rgba(255,255,255,0.1)',background:stFilter===f?'var(--accent)':'transparent',color:stFilter===f?'#fff':'rgba(255,255,255,0.5)',transition:'all .15s'}}>
-                {{all:'Все',new:'Не назначены',assigned:'Назначены',picked:'В пути'}[f]}
+                {{all:'Все',new:'Не назначены',assigned:'Назначены',picked:'В пути',archive:'Архив'}[f]}
               </button>
             ))}
           </div>
@@ -601,9 +618,8 @@ export default function SupplyPage() {
                       )}
                     </div>
 
-                    {/* Compact right controls panel */}
+                    {/* Info and Actions panel */}
                     <div style={{width:200,flexShrink:0,borderLeft:'1px solid rgba(255,255,255,0.06)',padding:'10px 10px',display:'flex',flexDirection:'column',gap:6,justifyContent:'center'}}>
-                      {/* Row 1: status + split + comment */}
                       <div style={{display:'flex',gap:5,alignItems:'center',flexWrap:'wrap'}}>
                         <span className={`badge-pill ${MSBADGE[item.mStatus]}`} style={{fontSize:10,fontWeight:700,flexShrink:0}}>{MSLABEL[item.mStatus]}</span>
                         {['new','assigned'].includes(item.mStatus)&&(
@@ -613,31 +629,33 @@ export default function SupplyPage() {
                             <Scissors size={10}/> ÷
                           </button>
                         )}
-                          <button onClick={()=>handleDeleteItem(item.mid, item.name)}
-                            title="Удалить позицию"
-                            style={{padding:'3px 6px',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:4,color:'#ef4444',cursor:'pointer',display:'flex',alignItems:'center',gap:3,fontSize:10,fontWeight:600,flexShrink:0}}>
-                            <Trash2 size={10}/>
-                          </button>
-                          <button onClick={()=>toggleExp(item.mid)}
+                        <button onClick={()=>handleDeleteItem(item.mid, item.name)}
+                          title="Удалить позицию"
+                          style={{padding:'3px 6px',background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:4,color:'#ef4444',cursor:'pointer',display:'flex',alignItems:'center',gap:3,fontSize:10,fontWeight:600,flexShrink:0}}>
+                          <Trash2 size={10}/>
+                        </button>
+                        <button onClick={()=>toggleExp(item.mid)}
                           style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:3,background:'none',border:'1px solid rgba(255,255,255,0.08)',borderRadius:4,padding:'3px 7px',color:item.comments.length>0||hasAttach?'rgba(255,255,255,0.8)':'rgba(255,255,255,0.25)',cursor:'pointer',fontSize:11,fontWeight:600}}>
                           <MessageSquare size={11} color={item.comments.length>0?'var(--accent)':hasAttach?'#60a5fa':undefined}/>
                           {item.comments.length>0?item.comments.length:hasAttach?'📎':''}
                           {exp?<ChevronUp size={9}/>:<ChevronDown size={9}/>}
                         </button>
                       </div>
-                      {/* Row 2: store compact */}
-                      <input list="stores-m" defaultValue={item.storeName||''} placeholder="🏪 Магазин..."
-                        onBlur={e=>triggerUpdateItem(item.mid,{storeName:e.target.value,mStatus:e.target.value?(item.mStatus==='new'?'assigned':item.mStatus):'new',assignedQty:item.assignedQty??item.orderedQty})}
-                        style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:5,padding:'5px 8px',fontSize:12,color:'rgba(255,255,255,0.85)',outline:'none'}}/>
-                      <datalist id="stores-m">{allStores.map(s=><option key={s} value={s}/>)}</datalist>
-                      {/* Row 3: driver compact */}
-                      <input 
-                        list="drivers-list"
-                        placeholder="🚚 Водитель..."
-                        defaultValue={item.driver||''}
-                        onBlur={e=>triggerUpdateItem(item.mid,{driver:e.target.value})}
-                        style={{width:'100%',background:'rgba(255,255,255,0.05)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:5,padding:'5px 8px',fontSize:12,color:'rgba(255,255,255,0.85)',outline:'none'}}
-                      />
+
+                      {/* Display assigned info instead of inputs */}
+                      {item.storeName && (
+                        <div style={{fontSize:11, color:'rgba(255,255,255,0.7)', background:'rgba(255,255,255,0.03)', padding:'4px 8px', borderRadius:4, display:'flex', alignItems:'center', gap:6}}>
+                          <Store size={10} color="var(--accent)"/> {item.storeName}
+                        </div>
+                      )}
+                      {item.driver && (
+                        <div style={{fontSize:11, color:'rgba(255,255,255,0.7)', background:'rgba(255,255,255,0.03)', padding:'4px 8px', borderRadius:4, display:'flex', alignItems:'center', gap:6}}>
+                          <Truck size={10} color="var(--blue)"/> {item.driver}
+                        </div>
+                      )}
+                      {!item.storeName && !item.driver && (
+                        <div style={{fontSize:10, color:'rgba(255,255,255,0.2)', textAlign:'center', fontStyle:'italic'}}>Нужно назначение</div>
+                      )}
                     </div>
                   </div>
 
@@ -781,14 +799,23 @@ export default function SupplyPage() {
                 ))}
               </div>
             ))}
+            {filteredOrders.length === 0 && (
+              <div style={{padding:40, textAlign:'center', color:'rgba(255,255,255,0.3)', gridColumn:'1/-1'}}>Нет заявок в этой категории</div>
+            )}
           </div>
         </div>
       )}
 
       {/* ════ OVERVIEW ════ */}
       {view==='overview'&&(
-        <div style={{background:'var(--bg-surface)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'var(--radius)',overflow:'hidden'}}>
-          {orders.map(order=>(
+        <div style={{display:'flex',flexDirection:'column',gap:20}}>
+          <div style={{display:'flex',gap:8,background:'rgba(255,255,255,0.03)',padding:4,borderRadius:10,width:'fit-content'}}>
+            <button onClick={()=>setOverviewFilter('active')} style={{background:overviewFilter==='active'?'rgba(255,255,255,0.1)':'transparent',border:'none',color:'#fff',padding:'6px 16px',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:overviewFilter==='active'?700:400}}>Активные</button>
+            <button onClick={()=>setOverviewFilter('archived')} style={{background:overviewFilter==='archived'?'rgba(255,255,255,0.1)':'transparent',border:'none',color:'#fff',padding:'6px 16px',borderRadius:8,cursor:'pointer',fontSize:13,fontWeight:overviewFilter==='archived'?700:400}}>Архив заявок</button>
+          </div>
+
+          <div style={{display:'grid',gap:16,gridTemplateColumns:'repeat(auto-fill, minmax(400px, 1fr))'}}>
+            {filteredOrders.map(order=>(
             <div key={order.id} style={{borderBottom:'1px solid rgba(255,255,255,0.06)',padding:'16px 20px'}}>
               <div style={{display:'flex',alignItems:'center',gap:12,marginBottom:12,flexWrap:'wrap'}}>
                 <span style={{fontWeight:800,fontSize:13,color:'rgba(255,255,255,0.4)'}}> #{order.id}</span>
@@ -814,7 +841,8 @@ export default function SupplyPage() {
             </div>
           ))}
         </div>
-      )}
+      </div>
+    )}
 
       {toast&&<div className="toast"><Package size={15}/> {toast}</div>}
     </AppLayout>

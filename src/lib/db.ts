@@ -66,9 +66,12 @@ function initDb() {
       type TEXT NOT NULL, -- 'advance', 'penalty', 'bonus'
       amount INTEGER NOT NULL,
       date TEXT NOT NULL,
+      source TEXT, -- 'personal', 'firm', 'director'
+      author_id TEXT,
       description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
+      FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE,
+      FOREIGN KEY (author_id) REFERENCES workers(id)
     );
 
     CREATE TABLE IF NOT EXISTS brigade_pots (
@@ -159,7 +162,8 @@ function initDb() {
       writeoff_reason TEXT,
       writeoff_photo TEXT,
       writeoff_requestedBy TEXT,
-      writeoff_date TEXT
+      writeoff_date TEXT,
+      photo_url TEXT
     );
 
     CREATE TABLE IF NOT EXISTS stores (
@@ -206,6 +210,18 @@ function initDb() {
 
   try {
     db.prepare('ALTER TABLE workers ADD COLUMN is_approved INTEGER DEFAULT 1').run()
+  } catch (e) {}
+
+  try {
+    db.prepare('ALTER TABLE financial_records ADD COLUMN source TEXT').run()
+  } catch (e) {}
+
+  try {
+    db.prepare('ALTER TABLE financial_records ADD COLUMN author_id TEXT').run()
+  } catch (e) {}
+
+  try {
+    db.prepare('ALTER TABLE tools ADD COLUMN photo_url TEXT').run()
   } catch (e) {}
 
   // Сидирование данных (Первичное заполнение для теста)
