@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { login, register } from '@/actions/auth'
 import { HardHat, LogIn, UserPlus } from 'lucide-react'
+import ThreeBackground from './ThreeBackground'
 
 export default function AuthScreen() {
   const [tab, setTab] = useState<'login' | 'register'>('login')
@@ -74,8 +75,9 @@ export default function AuthScreen() {
   }
 
   return (
-    <div style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:20, background:'var(--bg)'}}>
-      <div style={{width:'100%', maxWidth:400, background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:24, boxShadow:'0 10px 40px rgba(0,0,0,0.5)'}}>
+    <div style={{minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', padding:20, position: 'relative', overflow: 'hidden', pointerEvents: 'none', background: 'transparent'}}>
+      <ThreeBackground />
+      <div style={{width:'100%', maxWidth:400, background:'rgba(24, 24, 27, 0.9)', backdropFilter: 'blur(20px)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:'var(--radius)', padding:24, boxShadow:'0 20px 50px rgba(0,0,0,0.5)', position: 'relative', zIndex: 100, pointerEvents: 'auto'}}>
         
         <div style={{textAlign:'center', marginBottom:24}}>
           <div style={{display:'inline-flex', alignItems:'center', justifyContent:'center', width:60, height:60, borderRadius:'50%', background:'rgba(234,179,8,0.1)', marginBottom:16}}>

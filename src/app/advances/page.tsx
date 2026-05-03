@@ -30,6 +30,10 @@ export default function AdvancesPage() {
   const [fSource, setFSource] = useState('personal')
   const [fDesc, setFDesc] = useState('')
 
+  // Date filters
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+
   const loadData = async () => {
     setLoading(true)
     const [advData, workersData] = await Promise.all([
@@ -63,11 +67,22 @@ export default function AdvancesPage() {
   useEffect(() => { loadData() }, [])
 
   const filtered = useMemo(() => {
-    return advances.filter(a => 
-      a.worker_name.toLowerCase().includes(search.toLowerCase()) ||
-      a.description.toLowerCase().includes(search.toLowerCase())
-    )
-  }, [advances, search])
+    return advances.filter(a => {
+      const matchesSearch = a.worker_name.toLowerCase().includes(search.toLowerCase()) ||
+                           a.description.toLowerCase().includes(search.toLowerCase())
+      const matchesStart = !startDate || a.date >= startDate
+      const matchesEnd = !endDate || a.date <= endDate
+      return matchesSearch && matchesStart && matchesEnd
+    })
+  }, [advances, search, startDate, endDate])
+
+  const totals = useMemo(() => {
+    return filtered.reduce((acc, a) => {
+      acc[a.source] = (acc[a.source] || 0) + a.amount
+      acc.total += a.amount
+      return acc
+    }, { personal: 0, firm: 0, director: 0, total: 0 } as Record<string, number>)
+  }, [filtered])
 
   const handleCreate = async () => {
     if (!fWorkerId || !fAmount || !fDate) return
@@ -112,9 +127,33 @@ export default function AdvancesPage() {
         </div>
       </div>
 
+      {/* Summary Cards */}
+      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16, marginBottom:24}}>
+        {Object.entries(SOURCE_LABELS).map(([key, info]) => (
+          <div key={key} style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:16, padding:20, display:'flex', alignItems:'center', gap:16}}>
+            <div style={{width:48, height:48, borderRadius:12, background:info.color+'15', display:'flex', alignItems:'center', justifyContent:'center', color:info.color}}>
+              <info.icon size={24}/>
+            </div>
+            <div>
+              <div style={{fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>{info.label}</div>
+              <div style={{fontSize:20, fontWeight:800, color:'#fff'}}>{(totals[key] || 0).toLocaleString()} ₽</div>
+            </div>
+          </div>
+        ))}
+        <div style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--accent)', borderRadius:16, padding:20, display:'flex', alignItems:'center', gap:16, boxShadow:'inset 0 0 20px rgba(201,55,44,0.05)'}}>
+          <div style={{width:48, height:48, borderRadius:12, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff'}}>
+            <DollarSign size={24}/>
+          </div>
+          <div>
+            <div style={{fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Всего выплачено</div>
+            <div style={{fontSize:20, fontWeight:800, color:'var(--accent)'}}>{totals.total.toLocaleString()} ₽</div>
+          </div>
+        </div>
+      </div>
+
       {/* Filters */}
-      <div style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:16, padding:16, marginBottom:24, display:'flex', gap:16}}>
-        <div style={{position:'relative', flex:1}}>
+      <div style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:16, padding:16, marginBottom:24, display:'flex', flexWrap:'wrap', gap:16}}>
+        <div style={{position:'relative', flex:2, minWidth:250}}>
           <Search size={18} style={{position:'absolute', left:12, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)'}}/>
           <input 
             placeholder="Поиск по сотруднику или комментарию..." 
@@ -122,6 +161,36 @@ export default function AdvancesPage() {
             onChange={e => setSearch(e.target.value)}
             style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:'12px 12px 12px 40px', borderRadius:10, color:'#fff', outline:'none'}}
           />
+        </div>
+        
+        <div style={{display:'flex', gap:10, flex:1, minWidth:300}}>
+          <div style={{position:'relative', flex:1}}>
+            <Calendar size={14} style={{position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)'}}/>
+            <input 
+              type="date" 
+              value={startDate}
+              onChange={e => setStartDate(e.target.value)}
+              style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:'10px 10px 10px 32px', borderRadius:10, color:'#fff', fontSize:12, outline:'none'}}
+            />
+          </div>
+          <div style={{alignSelf:'center', color:'rgba(255,255,255,0.2)'}}>—</div>
+          <div style={{position:'relative', flex:1}}>
+            <Calendar size={14} style={{position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)'}}/>
+            <input 
+              type="date" 
+              value={endDate}
+              onChange={e => setEndDate(e.target.value)}
+              style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:'10px 10px 10px 32px', borderRadius:10, color:'#fff', fontSize:12, outline:'none'}}
+            />
+          </div>
+          {(startDate || endDate) && (
+            <button 
+              onClick={() => {setStartDate(''); setEndDate('')}}
+              style={{background:'rgba(255,255,255,0.05)', border:'none', color:'rgba(255,255,255,0.5)', padding:'0 10px', borderRadius:10, cursor:'pointer', fontSize:11}}
+            >
+              Сброс
+            </button>
+          )}
         </div>
       </div>
 

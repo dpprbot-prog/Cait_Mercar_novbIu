@@ -57,7 +57,7 @@ export async function createAdvance(data: {
     details: `Выдан аванс: ${worker?.name} — ${data.amount} руб. (Источник: ${data.source})`
   })
   
-  revalidatePath('/salary')
+  revalidatePath('/advances')
   revalidatePath('/history')
   return result.lastInsertRowid
 }
@@ -83,6 +83,6 @@ export async function deleteAdvance(id: number) {
     details: `Удален аванс: ${adv.worker_name} — ${adv.amount} руб.`
   })
   
-  revalidatePath('/salary')
+  revalidatePath('/advances')
   revalidatePath('/history')
 }

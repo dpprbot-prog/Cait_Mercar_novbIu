@@ -16,6 +16,7 @@ export default function DashboardPage() {
     urgentOrders: 0,
     brigadeSize: 0,
     checkedInCount: 0,
+    brigadeName: '',
     brigadeMembers: [] as any[],
     sizAlerts: 0
   })
@@ -87,7 +88,9 @@ export default function DashboardPage() {
           <p>{user?.role} &nbsp;·&nbsp; {new Date().toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
         </div>
         <div className="welcome-pills">
-          <div className="welcome-pill">Бригада: <span>{user?.brigade_id || '—'}</span></div>
+          {(user?.role !== 'Админ' || (stats.brigadeName !== '—' && stats.brigadeName !== 'b3')) && (
+            <div className="welcome-pill">Бригада: <span>{stats.brigadeName}</span></div>
+          )}
           <div className="welcome-pill">Заявок: <span>{stats.activeOrders}</span></div>
         </div>
       </div>

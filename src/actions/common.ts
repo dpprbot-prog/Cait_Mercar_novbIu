@@ -35,10 +35,17 @@ export async function getDashboardStats(workerId: string) {
   const urgentSupply = db.prepare("SELECT COUNT(*) as count FROM supply_orders o JOIN supply_items i ON o.id = i.order_id WHERE o.priority = 'urgent' AND i.m_status NOT IN ('delivered', 'accepted')").get() as { count: number }
   
   // 3. Бригада: количество людей и те, кто отметился сегодня
-  const user = db.prepare('SELECT brigade_id FROM workers WHERE id = ?').get(workerId) as { brigade_id: string } | undefined
+  const user = db.prepare(`
+    SELECT w.brigade_id, b.name as brigade_name 
+    FROM workers w 
+    LEFT JOIN brigades b ON w.brigade_id = b.id 
+    WHERE w.id = ?
+  `).get(workerId) as { brigade_id: string, brigade_name: string | null } | undefined
+
   let brigadeCount = 0
   let checkedIn = 0
   let brigadeMembers: any[] = []
+  let brigadeName = user?.brigade_name || user?.brigade_id || '—'
 
   if (user?.brigade_id) {
     // Список всех участников бригады
@@ -82,6 +89,7 @@ export async function getDashboardStats(workerId: string) {
     urgentOrders: urgentSupply.count,
     brigadeSize: brigadeCount,
     checkedInCount: checkedIn,
+    brigadeName,
     brigadeMembers, // Новый список с деталями
     sizAlerts: sizWarnings.count
   }
