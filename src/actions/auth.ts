@@ -4,6 +4,7 @@ import db from '@/lib/db'
 import { cookies } from 'next/headers'
 import crypto from 'crypto'
 import { revalidatePath } from 'next/cache'
+import { createNotification } from './notifications'
 
 export interface WorkerProfile {
   id: string
@@ -135,6 +136,21 @@ export async function register(data: {
       data.clothing_size || null, 
       data.shoe_size || null
     )
+    
+    // Оповещаем админов о новой регистрации
+    try {
+      const admins = db.prepare('SELECT id FROM workers WHERE role = ?').all('Админ') as { id: string }[]
+      for (const admin of admins) {
+        await createNotification(
+          admin.id, 
+          'admin_approval', 
+          'Новая регистрация', 
+          `Пользователь ${data.last_name} ${data.first_name} ожидает одобрения.`
+        )
+      }
+    } catch (e) {
+      console.error('Failed to notify admins:', e)
+    }
 
     return { success: true, message: 'Заявка на регистрацию отправлена. Дождитесь одобрения администратором.' }
   } catch (error) {
