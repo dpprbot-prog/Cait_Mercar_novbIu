@@ -7,9 +7,9 @@ import {
   Users, Briefcase, FileSignature, Landmark, Trash2
 } from 'lucide-react'
 
-import { getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, BrigadeSalaryData, WorkerSalaryData } from '@/actions/salary'
+import { getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, BrigadeSalaryData, WorkerSalaryData, getMonthlyTimesheet } from '@/actions/salary'
 import { exportSalaryToTemplate } from '@/actions/export'
-import { FileDown } from 'lucide-react'
+import { FileDown, Calendar, Table as TableIcon, List } from 'lucide-react'
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
 
@@ -27,8 +27,10 @@ export default function SalaryPage() {
   const [brigades, setBrigades] = useState<BrigadeSalaryData[]>([])
   const [activeTab, setActiveTab] = useState<string>('')
   
-  const [monthIdx, setMonthIdx] = useState(3) // Апрель
-  const [year, setYear] = useState(2026)
+  const [monthIdx, setMonthIdx] = useState(new Date().getMonth())
+  const [year, setYear] = useState(new Date().getFullYear())
+  const [viewMode, setViewMode] = useState<'list' | 'timesheet'>('list')
+  const [timesheetData, setTimesheetData] = useState<any>(null)
   
   // Modals / Inputs
   const [advModal, setAdvModal] = useState<{wid:string}|null>(null)
@@ -49,7 +51,13 @@ export default function SalaryPage() {
 
   useEffect(() => {
     loadData()
-  }, [monthIdx, year])
+  }, [monthIdx, year, activeTab])
+
+  useEffect(() => {
+    if (viewMode === 'timesheet' && activeTab) {
+      getMonthlyTimesheet(monthIdx, year, activeTab).then(setTimesheetData)
+    }
+  }, [monthIdx, year, activeTab, viewMode])
 
   // ── ACTIONS ──
   const handlePrevMonth = () => { if(monthIdx===0){setMonthIdx(11);setYear(y=>y-1)} else setMonthIdx(m=>m-1) }
@@ -212,17 +220,42 @@ export default function SalaryPage() {
           <button onClick={handleNextMonth} style={{padding:6,borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--text-muted)',cursor:'pointer',border:'none',background:'transparent'}}><ChevronRight size={16}/></button>
         </div>
 
-        <button 
-          onClick={handleExportTemplate}
-          style={{
-            display:'flex', alignItems:'center', gap:8, padding:'8px 16px', background:'var(--blue)', color:'#fff', 
-            border:'none', borderRadius:20, fontWeight:700, fontSize:13, cursor:'pointer', transition:'all 0.2s'
-          }}
-          onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-        >
-          <FileDown size={16}/> Экспорт в шаблон
-        </button>
+        <div style={{display:'flex', gap:8}}>
+          <div style={{display:'flex', background:'var(--bg-elevated)', borderRadius:20, padding:2, border:'1px solid var(--border)'}}>
+            <button 
+              onClick={() => setViewMode('list')}
+              style={{
+                display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:18, border:'none', fontSize:12, fontWeight:700, cursor:'pointer',
+                background: viewMode === 'list' ? 'var(--blue)' : 'transparent',
+                color: viewMode === 'list' ? '#fff' : 'var(--text-muted)'
+              }}
+            >
+              <List size={14}/> Список
+            </button>
+            <button 
+              onClick={() => setViewMode('timesheet')}
+              style={{
+                display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:18, border:'none', fontSize:12, fontWeight:700, cursor:'pointer',
+                background: viewMode === 'timesheet' ? 'var(--blue)' : 'transparent',
+                color: viewMode === 'timesheet' ? '#fff' : 'var(--text-muted)'
+              }}
+            >
+              <TableIcon size={14}/> Табель
+            </button>
+          </div>
+
+          <button 
+            onClick={handleExportTemplate}
+            style={{
+              display:'flex', alignItems:'center', gap:8, padding:'8px 16px', background:'var(--bg-surface)', color:'#fff', 
+              border:'1px solid var(--border)', borderRadius:20, fontWeight:700, fontSize:13, cursor:'pointer', transition:'all 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <FileDown size={16}/> Шаблон
+          </button>
+        </div>
       </div>
 
       <div className="responsive-flex-col" style={{ width: '100%' }}>
@@ -248,151 +281,210 @@ export default function SalaryPage() {
         {/* ── RIGHT: Pot & Table ── */}
         <div style={{flex:1, width: '100%' }}>
           
-          {/* Pot Setup */}
-          <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:20, marginBottom:16}}>
-            <div className="responsive-flex-col" style={{justifyContent:'space-between', gap: 16}}>
-              <div>
-                <h2 style={{fontSize:20, fontWeight:900, color:'#fff', marginBottom:4}}>{activeB.name}</h2>
-                <div style={{fontSize:13, color:'var(--text-muted)'}}>
-                  Сдельное распределение по коэффициенту трудового участия (КТУ).
+          {viewMode === 'list' ? (
+            <>
+              {/* Pot Setup */}
+              <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:20, marginBottom:16}}>
+                <div className="responsive-flex-col" style={{justifyContent:'space-between', gap: 16}}>
+                  <div>
+                    <h2 style={{fontSize:20, fontWeight:900, color:'#fff', marginBottom:4}}>{activeB.name}</h2>
+                    <div style={{fontSize:13, color:'var(--text-muted)'}}>
+                      Сдельное распределение по коэффициенту трудового участия (КТУ).
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Общая сумма за объект (Котел)</div>
+                    <input 
+                      type="text" 
+                      value={activeB.potAmount===0 ? '' : activeB.potAmount.toLocaleString('ru-RU')}
+                      onChange={e=>changePot(e.target.value)}
+                      onBlur={savePot}
+                      placeholder="Окладный режим (0 ₽)"
+                      style={{
+                        background:'var(--bg-elevated)', border:'1px solid var(--border-light)', borderRadius:8, 
+                        padding:'10px 16px', fontSize:22, fontWeight:900, color:'#fff', outline:'none',
+                        width: '100%', maxWidth: '250px', borderBottom:`2px solid ${activeB.potAmount>0 ? 'var(--blue)' : 'var(--border-light)'}`
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
-              <div>
-                <div style={{fontSize:11, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Общая сумма за объект (Котел)</div>
-                <input 
-                  type="text" 
-                  value={activeB.potAmount===0 ? '' : activeB.potAmount.toLocaleString('ru-RU')}
-                  onChange={e=>changePot(e.target.value)}
-                  onBlur={savePot}
-                  placeholder="Окладный режим (0 ₽)"
-                  style={{
-                    background:'var(--bg-elevated)', border:'1px solid var(--border-light)', borderRadius:8, 
-                    padding:'10px 16px', fontSize:22, fontWeight:900, color:'#fff', outline:'none',
-                    width: '100%', maxWidth: '250px', borderBottom:`2px solid ${activeB.potAmount>0 ? 'var(--blue)' : 'var(--border-light)'}`
-                  }}
-                />
+
+              {/* Money Flow Dashboard */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>
+                {activeB.potAmount > 0 && (
+                  <div style={{background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
+                    <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--blue)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Briefcase size={14}/> Остаток котла</div>
+                    <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.remainingPot)}</div>
+                    <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Фонд для премий</div>
+                  </div>
+                )}
+
+                <div style={{background:'var(--green-dim)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--green)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Banknote size={14}/> На руки бригаде</div>
+                  <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.toPay)}</div>
+                  <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Сумма к физической выдаче</div>
+                </div>
+                
+                <div style={{background:'rgba(234,179,8,0.08)', border:'1px solid rgba(234,179,8,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--yellow)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><HandCoins size={14}/> Возврат за авансы</div>
+                  <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.advances)}</div>
+                  <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Отдать спонсору / прорабу</div>
+                </div>
+
+                <div style={{background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
+                  <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--red)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Landmark size={14}/> В кассу фирмы</div>
+                  <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.firmPenalties)}</div>
+                  <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Удержанные штрафы</div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Money Flow Dashboard */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>
-            {activeB.potAmount > 0 && (
-              <div style={{background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-                <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--blue)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Briefcase size={14}/> Остаток котла</div>
-                <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.remainingPot)}</div>
-                <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Фонд для премий</div>
-              </div>
-            )}
-
-            <div style={{background:'var(--green-dim)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-              <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--green)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Banknote size={14}/> На руки бригаде</div>
-              <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.toPay)}</div>
-              <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Сумма к физической выдаче</div>
-            </div>
-            
-            <div style={{background:'rgba(234,179,8,0.08)', border:'1px solid rgba(234,179,8,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-              <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--yellow)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><HandCoins size={14}/> Возврат за авансы</div>
-              <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.advances)}</div>
-              <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Отдать спонсору / прорабу</div>
-            </div>
-
-            <div style={{background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-              <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--red)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Landmark size={14}/> В кассу фирмы</div>
-              <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.firmPenalties)}</div>
-              <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Удержанные штрафы</div>
-            </div>
-          </div>
-
-          {/* Table */}
-          <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', overflowX:'auto'}}>
-            <table style={{width:'100%', borderCollapse:'collapse'}}>
-              <thead>
-                <tr style={{background:'var(--bg-elevated)'}}>
-                  <th style={{padding:'12px 14px', textAlign:'left', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Сотрудник</th>
-                  <th style={{padding:'12px 14px', textAlign:'center', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Часы (БД)</th>
-                  <th style={{padding:'12px 14px', textAlign:'center', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}} title="Коэффициент ценности">Ставка / Вес</th>
-                  <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Доля / Премия</th>
-                  <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Авансы / Штрафы</th>
-                  <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Итог На Руки</th>
-                  <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Управление</th>
-                </tr>
-              </thead>
-              <tbody>
-                {math.items.map(({ w, basePay, gross, finalPay }) => {
-                  const isPaid = w.status === 'paid'
-                  return (
-                    <tr key={w.id} style={{borderBottom:'1px solid rgba(255,255,255,0.04)', background:isPaid?'rgba(255,255,255,0.02)':'transparent'}}>
-                      <td style={{padding:'12px 14px'}}>
-                        <div style={{fontWeight:700, color:'#fff', fontSize:14}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
-                        <div style={{fontSize:11, color:'var(--text-muted)'}}>{w.role}</div>
-                      </td>
-                      
-                      {/* ЧАСЫ (Реальные из БД) */}
-                      <td style={{padding:'12px 14px', textAlign:'center'}}>
-                        <div style={{width:60, textAlign:'center', display:'inline-block', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, padding:'6px', color: w.hours > 0 ? '#fff' : 'var(--text-muted)', outline:'none'}}>
-                          {w.hours} ч
-                        </div>
-                      </td>
-
-                      {/* СТАВКА */}
-                      <td style={{padding:'12px 14px', textAlign:'center'}}>
-                        <input type="text" placeholder="0" value={w.baseRate === 0 ? '' : w.baseRate} 
-                          onChange={e=>changeBaseRate(w.id, e.target.value)}
-                          onBlur={()=>saveBaseRate(w.id)}
-                          style={{width:80, textAlign:'center', background:'var(--bg-elevated)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, padding:'10px 8px', fontSize:14, fontWeight:700, color:'#fff', outline:'none', transition:'border 0.2s', boxShadow:'inset 0 2px 4px rgba(0,0,0,0.1)'}}/>
-                      </td>
-
-                      {/* ДОЛЯ И ПРЕМИИ */}
-                      <td style={{padding:'12px 14px', textAlign:'right'}}>
-                        <div style={{fontWeight:800, color:'#fff', fontSize:13}}>Оклад: {formatMoney(basePay)}</div>
-                        {w.bonuses > 0 && <div style={{color:'var(--green)', fontSize:11, fontWeight:700, marginTop:4}}>+ {formatMoney(w.bonuses)} (Премия)</div>}
-                      </td>
-
-                      {/* УДЕРЖАНИЯ */}
-                      <td style={{padding:'12px 14px', textAlign:'right'}}>
-                        {w.advances > 0 && <div style={{color:'var(--yellow)', fontSize:12, fontWeight:700}}>- {formatMoney(w.advances)} <span style={{fontSize:10,fontWeight:400}}>(Аванс)</span></div>}
-                        {w.penalties > 0 && <div style={{color:'var(--red)', fontSize:12, fontWeight:700, marginTop:2}}>- {formatMoney(w.penalties)} <span style={{fontSize:10,fontWeight:400}}>(Штраф)</span></div>}
-                        {!w.advances && !w.penalties && <span style={{color:'var(--text-muted)'}}>—</span>}
-                      </td>
-
-                      {/* ИТОГ */}
-                      <td style={{padding:'12px 14px', textAlign:'right'}}>
-                        <div style={{
-                          fontSize:18, fontWeight:900, 
-                          color: isPaid ? 'var(--text-muted)' : finalPay>0 ? 'var(--green)' : '#fff',
-                          textDecoration: isPaid ? 'line-through' : 'none'
-                        }}>
-                          {formatMoney(Math.max(0, finalPay))}
-                        </div>
-                        {isPaid && <div style={{fontSize:10, color:'var(--text-muted)', fontWeight:700, textTransform:'uppercase', marginTop:2}}>Выплачено</div>}
-                      </td>
-
-                      {/* КНОПКИ */}
-                      <td style={{padding:'12px 14px'}}>
-                        <div style={{display:'flex', gap:4, justifyContent:'flex-end'}}>
-                          <div style={{display:'flex', flexDirection:'column', gap:4}}>
-                            <div style={{display:'flex', gap:4}}>
-                              <button onClick={()=>setAdjModal({wid:w.id, type:'bonus'})} title="Премия (из котла)" style={{padding:'4px 6px',borderRadius:4,background:'var(--green-dim)',color:'var(--green)',border:'none',cursor:'pointer'}}><TrendingUp size={12}/></button>
-                              <button onClick={()=>setAdjModal({wid:w.id, type:'penalty'})} title="Штраф (В кассу)" style={{padding:'4px 6px',borderRadius:4,background:'var(--red-dim)',color:'var(--red)',border:'none',cursor:'pointer'}}><TrendingDown size={12}/></button>
-                            </div>
-                            <button onClick={()=>setAdvModal({wid:w.id})} style={{padding:'4px 8px',borderRadius:4,background:'var(--yellow-dim)',color:'var(--yellow)',border:'none',fontSize:10,fontWeight:700,cursor:'pointer'}}>АВАНС</button>
-                          </div>
-                          
-                          {!isPaid && finalPay > 0 && (
-                            <button onClick={()=>payWorker(w.id)} style={{padding:'0 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',color:'#fff',borderRadius:6,fontWeight:700,fontSize:12,cursor:'pointer',height:46, transition:'0.2s'}}>
-                              ЗП
-                            </button>
-                          )}
-                        </div>
-                      </td>
-
+              {/* Table */}
+              <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', overflowX:'auto'}}>
+                <table style={{width:'100%', borderCollapse:'collapse'}}>
+                  <thead>
+                    <tr style={{background:'var(--bg-elevated)'}}>
+                      <th style={{padding:'12px 14px', textAlign:'left', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Сотрудник</th>
+                      <th style={{padding:'12px 14px', textAlign:'center', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Часы (БД)</th>
+                      <th style={{padding:'12px 14px', textAlign:'center', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}} title="Коэффициент ценности">Ставка / Вес</th>
+                      <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Доля / Премия</th>
+                      <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Авансы / Штрафы</th>
+                      <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Итог На Руки</th>
+                      <th style={{padding:'12px 14px', textAlign:'right', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'1px solid var(--border)'}}>Управление</th>
                     </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                  </thead>
+                  <tbody>
+                    {math.items.map(({ w, basePay, gross, finalPay }) => {
+                      const isPaid = w.status === 'paid'
+                      return (
+                        <tr key={w.id} style={{borderBottom:'1px solid rgba(255,255,255,0.04)', background:isPaid?'rgba(255,255,255,0.02)':'transparent'}}>
+                          <td style={{padding:'12px 14px'}}>
+                            <div style={{fontWeight:700, color:'#fff', fontSize:14}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
+                            <div style={{fontSize:11, color:'var(--text-muted)'}}>{w.role}</div>
+                          </td>
+                          
+                          {/* ЧАСЫ (Реальные из БД) */}
+                          <td style={{padding:'12px 14px', textAlign:'center'}}>
+                            <div style={{width:60, textAlign:'center', display:'inline-block', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, padding:'6px', color: w.hours > 0 ? '#fff' : 'var(--text-muted)', outline:'none'}}>
+                              {w.hours} ч
+                            </div>
+                          </td>
+
+                          {/* СТАВКА */}
+                          <td style={{padding:'12px 14px', textAlign:'center'}}>
+                            <input type="text" placeholder="0" value={w.baseRate === 0 ? '' : w.baseRate} 
+                              onChange={e=>changeBaseRate(w.id, e.target.value)}
+                              onBlur={()=>saveBaseRate(w.id)}
+                              style={{width:80, textAlign:'center', background:'var(--bg-elevated)', border:'1px solid rgba(255,255,255,0.15)', borderRadius:6, padding:'10px 8px', fontSize:14, fontWeight:700, color:'#fff', outline:'none', transition:'border 0.2s', boxShadow:'inset 0 2px 4px rgba(0,0,0,0.1)'}}/>
+                          </td>
+
+                          {/* ДОЛЯ И ПРЕМИИ */}
+                          <td style={{padding:'12px 14px', textAlign:'right'}}>
+                            <div style={{fontWeight:800, color:'#fff', fontSize:13}}>Оклад: {formatMoney(basePay)}</div>
+                            {w.bonuses > 0 && <div style={{color:'var(--green)', fontSize:11, fontWeight:700, marginTop:4}}>+ {formatMoney(w.bonuses)} (Премия)</div>}
+                          </td>
+
+                          {/* УДЕРЖАНИЯ */}
+                          <td style={{padding:'12px 14px', textAlign:'right'}}>
+                            {w.advances > 0 && <div style={{color:'var(--yellow)', fontSize:12, fontWeight:700}}>- {formatMoney(w.advances)} <span style={{fontSize:10,fontWeight:400}}>(Аванс)</span></div>}
+                            {w.penalties > 0 && <div style={{color:'var(--red)', fontSize:12, fontWeight:700, marginTop:2}}>- {formatMoney(w.penalties)} <span style={{fontSize:10,fontWeight:400}}>(Штраф)</span></div>}
+                            {!w.advances && !w.penalties && <span style={{color:'var(--text-muted)'}}>—</span>}
+                          </td>
+
+                          {/* ИТОГ */}
+                          <td style={{padding:'12px 14px', textAlign:'right'}}>
+                            <div style={{
+                              fontSize:18, fontWeight:900, 
+                              color: isPaid ? 'var(--text-muted)' : finalPay>0 ? 'var(--green)' : '#fff',
+                              textDecoration: isPaid ? 'line-through' : 'none'
+                            }}>
+                              {formatMoney(Math.max(0, finalPay))}
+                            </div>
+                            {isPaid && <div style={{fontSize:10, color:'var(--text-muted)', fontWeight:700, textTransform:'uppercase', marginTop:2}}>Выплачено</div>}
+                          </td>
+
+                          {/* КНОПКИ */}
+                          <td style={{padding:'12px 14px'}}>
+                            <div style={{display:'flex', gap:4, justifyContent:'flex-end'}}>
+                              <div style={{display:'flex', flexDirection:'column', gap:4}}>
+                                <div style={{display:'flex', gap:4}}>
+                                  <button onClick={()=>setAdjModal({wid:w.id, type:'bonus'})} title="Премия (из котла)" style={{padding:'4px 6px',borderRadius:4,background:'var(--green-dim)',color:'var(--green)',border:'none',cursor:'pointer'}}><TrendingUp size={12}/></button>
+                                  <button onClick={()=>setAdjModal({wid:w.id, type:'penalty'})} title="Штраф (В кассу)" style={{padding:'4px 6px',borderRadius:4,background:'var(--red-dim)',color:'var(--red)',border:'none',cursor:'pointer'}}><TrendingDown size={12}/></button>
+                                </div>
+                                <button onClick={()=>setAdvModal({wid:w.id})} style={{padding:'4px 8px',borderRadius:4,background:'var(--yellow-dim)',color:'var(--yellow)',border:'none',fontSize:10,fontWeight:700,cursor:'pointer'}}>АВАНС</button>
+                              </div>
+                              
+                              {!isPaid && finalPay > 0 && (
+                                <button onClick={()=>payWorker(w.id)} style={{padding:'0 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',color:'#fff',borderRadius:6,fontWeight:700,fontSize:12,cursor:'pointer',height:46, transition:'0.2s'}}>
+                                  ЗП
+                                </button>
+                              )}
+                            </div>
+                          </td>
+
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            /* ── TIMESHEET GRID VIEW ── */
+            <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:0, overflow:'hidden', display:'flex', flexDirection:'column'}}>
+              <div style={{padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <h2 style={{fontSize:18, fontWeight:800, color:'#fff'}}>Сводный табель часов ({activeB.name})</h2>
+                <div style={{fontSize:12, color:'var(--text-muted)'}}>Листайте вправо для просмотра всех дат →</div>
+              </div>
+              
+              <div style={{overflowX:'auto', width:'100%'}}>
+                <table style={{width:'100%', borderCollapse:'collapse', minWidth:1200}}>
+                  <thead>
+                    <tr style={{background:'var(--bg-elevated)'}}>
+                      <th style={{position:'sticky', left:0, zIndex:10, background:'var(--bg-elevated)', padding:'12px 14px', textAlign:'left', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'2px solid var(--border)', width:200}}>Сотрудник</th>
+                      {[...Array(new Date(year, monthIdx + 1, 0).getDate())].map((_, i) => (
+                        <th key={i} style={{padding:'10px 4px', textAlign:'center', fontSize:11, color:'var(--text-muted)', borderBottom:'2px solid var(--border)', width:35, borderLeft:'1px solid rgba(255,255,255,0.05)'}}>
+                          {i + 1}
+                        </th>
+                      ))}
+                      <th style={{padding:'12px 14px', textAlign:'center', fontSize:11, color:'var(--blue)', fontWeight:800, textTransform:'uppercase', borderBottom:'2px solid var(--border)', width:70}}>Итого</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {timesheetData && timesheetData.map((item: any) => {
+                      const total = Object.values(item.days).reduce((acc: number, day: any) => acc + day.hours, 0)
+                      return (
+                        <tr key={item.worker.id} style={{borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
+                          <td style={{position:'sticky', left:0, zIndex:10, background:'var(--bg-surface)', padding:'12px 14px', borderRight:'2px solid var(--border)'}}>
+                            <div style={{fontWeight:700, color:'#fff', fontSize:13}}>{item.worker.last_name} {item.worker.first_name[0]}.</div>
+                            <div style={{fontSize:10, color:'var(--text-muted)'}}>{item.worker.role}</div>
+                          </td>
+                          {[...Array(new Date(year, monthIdx + 1, 0).getDate())].map((_, i) => {
+                            const day = i + 1
+                            const dayData = item.days[day]
+                            return (
+                              <td key={i} title={dayData?.object || ''} style={{padding:'10px 4px', textAlign:'center', borderLeft:'1px solid rgba(255,255,255,0.05)', background: dayData ? 'rgba(59,130,246,0.05)' : 'transparent'}}>
+                                {dayData ? (
+                                  <div style={{fontWeight:800, color: dayData.hours >= 10 ? 'var(--orange)' : 'var(--blue)', fontSize:13}}>
+                                    {dayData.hours}
+                                  </div>
+                                ) : (
+                                  <span style={{color:'rgba(255,255,255,0.1)'}}>·</span>
+                                )}
+                              </td>
+                            )
+                          })}
+                          <td style={{padding:'12px 14px', textAlign:'center', background:'rgba(59,130,246,0.1)', fontWeight:900, color:'#fff', fontSize:14}}>
+                            {total}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

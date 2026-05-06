@@ -190,3 +190,53 @@ export async function resetFinanceRecord(workerId: string, type: 'advance' | 'bo
   
   revalidatePath('/salary')
 }
+
+export async function getMonthlyTimesheet(month: number, year: number, brigadeId?: string) {
+  const monthStr = month < 9 ? `0${month + 1}` : `${month + 1}`
+  const dateSearch = `%.${monthStr}.${year}`
+  
+  // 1. Получаем список сотрудников
+  let workersQuery = 'SELECT id, name, last_name, first_name, patronymic, role FROM workers'
+  const params: any[] = []
+  if (brigadeId && brigadeId !== '') {
+    workersQuery += ' WHERE brigade_id = ?'
+    params.push(brigadeId)
+  }
+  workersQuery += ' ORDER BY last_name, first_name'
+  const workers = db.prepare(workersQuery).all(...params) as any[]
+  
+  // 2. Получаем все записи за месяц
+  const entries = db.prepare(`
+    SELECT worker_id, date, hours_total, object_name
+    FROM time_entries
+    WHERE date LIKE ?
+  `).all(dateSearch) as any[]
+  
+  // 3. Формируем структуру: { workerId: { days: { day: hours }, worker: {...} } }
+  const dataMap: Record<string, { worker: any, days: Record<number, { hours: number, object: string }> }> = {}
+  
+  workers.forEach(w => {
+    dataMap[w.id.toString()] = {
+      worker: w,
+      days: {}
+    }
+  })
+  
+  entries.forEach(e => {
+    const wId = e.worker_id.toString()
+    if (dataMap[wId]) {
+      const day = parseInt(e.date.split('.')[0], 10)
+      if (dataMap[wId].days[day]) {
+        dataMap[wId].days[day].hours += e.hours_total
+        dataMap[wId].days[day].object += `, ${e.object_name}`
+      } else {
+        dataMap[wId].days[day] = {
+          hours: e.hours_total,
+          object: e.object_name
+        }
+      }
+    }
+  })
+  
+  return Object.values(dataMap)
+}
