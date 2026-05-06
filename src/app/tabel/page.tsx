@@ -29,7 +29,7 @@ export default function TabelPage() {
   const [object, setObject]     = useState('')
   const [startTime, setStart]   = useState('08:00')
   const [endTime, setEnd]       = useState('17:00')
-  const [lunchMin, setLunch]    = useState(30)
+  const [lunchMin, setLunch]    = useState(0)
   const [submitted, setSubmitted] = useState(false)
   
   const [toast, setToast]       = useState(false)
@@ -41,6 +41,10 @@ export default function TabelPage() {
   // DB Data
   const [brigades, setBrigades] = useState<{id: string, name: string}[]>([])
   const [objects, setObjects] = useState<string[]>([])
+  const [showObjectSelector, setShowObjectSelector] = useState(false)
+  const [showBrigadeSelector, setShowBrigadeSelector] = useState(false)
+  const [objectSearch, setObjectSearch] = useState('')
+  const [brigadeSearch, setBrigadeSearch] = useState('')
   const [myBrigadeWorkers, setMyBrigadeWorkers] = useState<WorkerWithEntry[]>([])
   const [history, setHistory] = useState<{date: string, object: string, hours: number}[]>([])
 
@@ -73,7 +77,7 @@ export default function TabelPage() {
           setObject('')
           setStart('08:00')
           setEnd('17:00')
-          setLunch(30)
+          setLunch(0)
           setSubmitted(false)
         }
       }
@@ -149,41 +153,31 @@ export default function TabelPage() {
           <div className="time-form-body">
             <div style={{display:'flex', gap:12, marginBottom:16}}>
               {/* Object */}
+              {/* Object Selector */}
               <div className="form-group" style={{flex:1, marginBottom:0}}>
                 <label className="form-label">Объект</label>
-                <input
-                  list="objects-list"
-                  className="form-input"
-                  value={object}
-                  onChange={e => setObject(e.target.value)}
-                  disabled={submitted}
-                  placeholder="Выберите объект..."
-                  style={{ borderColor: !object && !submitted ? 'var(--accent)' : undefined }}
-                />
-                <datalist id="objects-list">
-                  {objects.map(o => <option key={o} value={o}/>)}
-                </datalist>
+                <div 
+                  className={`custom-select ${!object && !submitted ? 'error' : ''}`}
+                  onClick={() => !submitted && setShowObjectSelector(true)}
+                >
+                  <span className={object ? 'selected-val' : 'placeholder-val'}>
+                    {object || 'Выберите объект...'}
+                  </span>
+                </div>
               </div>
 
-              {/* Brigade */}
+              {/* Brigade Selector */}
               <div className="form-group" style={{width: 140, flexShrink: 0, marginBottom:0}}>
                 <label className="form-label">Бригада</label>
-                <input 
-                  list="brigades-list"
-                  className="form-input"
-                  value={brigades.find(b => b.id === activeBrigadeId)?.name || activeBrigadeId} 
-                  onChange={(e) => {
-                    const b = brigades.find(bx => bx.name === e.target.value);
-                    if (b) setActiveBrigadeId(b.id);
-                    else setActiveBrigadeId(e.target.value);
-                  }}
-                  style={{ padding: '10px 8px', fontSize: 13 }}
-                  disabled={!!user?.brigade_id && user.role !== 'Админ'}
-                  placeholder="Бригада..."
-                />
-                <datalist id="brigades-list">
-                  {brigades.map(b => <option key={b.id} value={b.name}/>)}
-                </datalist>
+                <div 
+                  className={`custom-select ${!!user?.brigade_id && user.role !== 'Админ' ? 'disabled' : ''}`}
+                  onClick={() => (!user?.brigade_id || user.role === 'Админ') && setShowBrigadeSelector(true)}
+                  style={{ padding: '10px 8px', fontSize: 13, minHeight: 46 }}
+                >
+                  <span className="selected-val" style={{ fontSize: 12 }}>
+                    {brigades.find(b => b.id === activeBrigadeId)?.name || activeBrigadeId}
+                  </span>
+                </div>
                 {!!user?.brigade_id && user.role !== 'Админ' && (
                   <div style={{fontSize:9, color:'var(--green)', marginTop:2, fontWeight:700}}>ФИКСИРОВАНО</div>
                 )}
@@ -360,6 +354,87 @@ export default function TabelPage() {
             <button onClick={() => setShowHistory(false)} style={{width:'100%',padding:'12px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-muted)',fontWeight:600}}>
               Закрыть
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Object Selector Modal */}
+      {showObjectSelector && (
+        <div className="modal-overlay" onClick={() => setShowObjectSelector(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Выберите объект</h3>
+              <button className="close-btn" onClick={() => setShowObjectSelector(false)}>×</button>
+            </div>
+            <div className="modal-search">
+              <input 
+                type="text" 
+                placeholder="Поиск объекта..." 
+                value={objectSearch}
+                onChange={e => setObjectSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="objects-list-scroll">
+              {objects
+                .filter(o => o.toLowerCase().includes(objectSearch.toLowerCase()))
+                .map(o => (
+                <div 
+                  key={o} 
+                  className={`object-item ${object === o ? 'active' : ''}`}
+                  onClick={() => {
+                    setObject(o)
+                    setShowObjectSelector(false)
+                    setObjectSearch('')
+                  }}
+                >
+                  <div className="object-item-name">{o}</div>
+                  {object === o && <Check size={16} className="check-icon" />}
+                </div>
+              ))}
+              {objects.filter(o => o.toLowerCase().includes(objectSearch.toLowerCase())).length === 0 && (
+                <div className="no-results">Объекты не найдены</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Brigade Selector Modal */}
+      {showBrigadeSelector && (
+        <div className="modal-overlay" onClick={() => setShowBrigadeSelector(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Выберите бригаду</h3>
+              <button className="close-btn" onClick={() => setShowBrigadeSelector(false)}>×</button>
+            </div>
+            <div className="modal-search">
+              <input 
+                type="text" 
+                placeholder="Поиск бригады..." 
+                value={brigadeSearch}
+                onChange={e => setBrigadeSearch(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="objects-list-scroll">
+              {brigades
+                .filter(b => b.name.toLowerCase().includes(brigadeSearch.toLowerCase()))
+                .map(b => (
+                <div 
+                  key={b.id} 
+                  className={`object-item ${activeBrigadeId === b.id ? 'active' : ''}`}
+                  onClick={() => {
+                    setActiveBrigadeId(b.id)
+                    setShowBrigadeSelector(false)
+                    setBrigadeSearch('')
+                  }}
+                >
+                  <div className="object-item-name">{b.name}</div>
+                  {activeBrigadeId === b.id && <Check size={16} className="check-icon" />}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

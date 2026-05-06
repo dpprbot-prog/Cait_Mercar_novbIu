@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import React, { Suspense, useRef, useMemo, useState } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useFBX, Environment, PerspectiveCamera, Edges } from '@react-three/drei'
-import { Physics, RigidBody, BallCollider, CuboidCollider, RigidBodyApi } from '@react-three/rapier'
+import { Physics, RigidBody, BallCollider, CuboidCollider, RapierRigidBody } from '@react-three/rapier'
 import { useDrag } from '@use-gesture/react'
 import { EffectComposer, Bloom, Vignette, Noise } from '@react-three/postprocessing'
 import * as THREE from 'three'
@@ -28,7 +28,7 @@ const TOOLS_LIST = [
 
 function DraggableTool({ url, type, position, scale: baseScale = 0.1 }: any) {
   const fbx = useFBX(url)
-  const api = useRef<RigidBodyApi>(null)
+  const api = useRef<RapierRigidBody>(null)
   const [isDragging, setIsDragging] = useState(false)
   const { camera, mouse, viewport } = useThree()
   const isMobile = viewport.width < 12
@@ -91,7 +91,7 @@ function DraggableTool({ url, type, position, scale: baseScale = 0.1 }: any) {
       api.current.setAngularDamping(active ? 5 : 0.5)
       api.current.setLinearDamping(active ? 5 : 0.5)
     }
-  }, { pointerEvents: true })
+  })
 
   return (
     <RigidBody 

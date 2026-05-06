@@ -2,7 +2,7 @@
 
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
-import { getCurrentUser } from './auth'
+import { getCurrentUser, hashPassword } from './auth'
 import { logAction } from './history'
 
 async function checkAdmin() {
@@ -48,7 +48,7 @@ export async function updateWorkerAdmin(workerId: string, data: {
       data.clothing_size || null, 
       data.shoe_size || null,
       data.is_blocked !== undefined ? data.is_blocked : null,
-      data.passwordStr || null, 
+      data.passwordStr ? await hashPassword(data.passwordStr) : null, 
       workerId
     )
     

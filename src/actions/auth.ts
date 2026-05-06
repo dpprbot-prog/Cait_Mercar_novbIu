@@ -27,7 +27,7 @@ export interface WorkerProfile {
 const SESSION_COOKIE = 'merkare_session'
 
 // Хеш пароля (в реальном проекте используем сложную соль, здесь для удобства базовый sha256)
-function hashPassword(password: string) {
+export async function hashPassword(password: string) {
   if (password === 'admin' || password === 'sklad' || password === '1234') return password // Обратная совместимость с сидированными данными для тестов
   return crypto.createHash('sha256').update(password).digest('hex')
 }
@@ -45,7 +45,7 @@ export async function login(loginStr: string, passwordStr: string) {
       return { success: false, error: 'Ваш аккаунт ожидает подтверждения администратором' }
     }
 
-    if (worker.password_hash !== hashPassword(passwordStr)) {
+    if (worker.password_hash !== await hashPassword(passwordStr)) {
       return { success: false, error: 'Неверный пароль' }
     }
 
@@ -60,7 +60,7 @@ export async function login(loginStr: string, passwordStr: string) {
     const cookieStore = await cookies()
     cookieStore.set(SESSION_COOKIE, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: false, // Изменено с true на false для работы без HTTPS
       expires: expiresAt,
       path: '/'
     })
@@ -113,7 +113,7 @@ export async function register(data: {
     const colors = ['#f97316', '#3b82f6', '#8b5cf6', '#ef4444', '#10b981', '#14b8a6', '#ec4899', '#f59e0b']
     const user_color = colors[Math.floor(Math.random() * colors.length)]
 
-    const h = hashPassword(data.passwordStr)
+    const h = await hashPassword(data.passwordStr)
 
     // ВАЖНО: Ровно 13 параметров для INSERT (role='Рабочий' и is_approved=0 прописаны текстом)
     db.prepare(`
