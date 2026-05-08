@@ -207,13 +207,17 @@ export async function getMonthlyTimesheet(month: number, year: number, brigadeId
   
   // 2. Получаем все записи за месяц
   const entries = db.prepare(`
-    SELECT worker_id, date, hours_total, object_name
-    FROM time_entries
-    WHERE date LIKE ?
+    SELECT t.id, t.worker_id, t.date, t.hours_total, t.start_time, t.end_time, t.lunch_min, t.object_id, o.name as object_name
+    FROM time_entries t
+    LEFT JOIN objects o ON t.object_id = o.id
+    WHERE t.date LIKE ?
   `).all(dateSearch) as any[]
   
-  // 3. Формируем структуру: { workerId: { days: { day: hours }, worker: {...} } }
-  const dataMap: Record<string, { worker: any, days: Record<number, { hours: number, object: string }> }> = {}
+  // 3. Формируем структуру
+  const dataMap: Record<string, { 
+    worker: any, 
+    days: Record<number, { hours: number, object: string, entries?: any[] }> 
+  }> = {}
   
   workers.forEach(w => {
     dataMap[w.id.toString()] = {
@@ -229,14 +233,45 @@ export async function getMonthlyTimesheet(month: number, year: number, brigadeId
       if (dataMap[wId].days[day]) {
         dataMap[wId].days[day].hours += e.hours_total
         dataMap[wId].days[day].object += `, ${e.object_name}`
+        // Сохраняем список всех записей за день для редактирования
+        if (!dataMap[wId].days[day].entries) dataMap[wId].days[day].entries = []
+        dataMap[wId].days[day].entries.push(e)
       } else {
         dataMap[wId].days[day] = {
           hours: e.hours_total,
-          object: e.object_name
+          object: e.object_name,
+          entries: [e]
         }
       }
     }
   })
   
   return Object.values(dataMap)
+}
+
+export async function updateTimeEntry(id: number, data: {
+  objectId: string,
+  startTime: string,
+  endTime: string,
+  lunchMin: number,
+  hoursTotal: number
+}) {
+  db.prepare(`
+    UPDATE time_entries 
+    SET object_id = ?, start_time = ?, end_time = ?, lunch_min = ?, hours_total = ?
+    WHERE id = ?
+  `).run(data.objectId, data.startTime, data.endTime, data.lunchMin, data.hoursTotal, id)
+  
+  revalidatePath('/salary')
+  return { success: true }
+}
+
+export async function deleteTimeEntry(id: number) {
+  db.prepare('DELETE FROM time_entries WHERE id = ?').run(id)
+  revalidatePath('/salary')
+  return { success: true }
+}
+
+export async function getObjects() {
+  return db.prepare('SELECT id, name FROM objects ORDER BY name').all() as { id: string, name: string }[]
 }

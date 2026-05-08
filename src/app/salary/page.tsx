@@ -7,7 +7,11 @@ import {
   Users, Briefcase, FileSignature, Landmark, Trash2
 } from 'lucide-react'
 
-import { getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, BrigadeSalaryData, WorkerSalaryData, getMonthlyTimesheet } from '@/actions/salary'
+import { 
+  getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, 
+  BrigadeSalaryData, WorkerSalaryData, getMonthlyTimesheet,
+  getObjects, updateTimeEntry, deleteTimeEntry 
+} from '@/actions/salary'
 import { exportSalaryToTemplate } from '@/actions/export'
 import { FileDown, Calendar, Table as TableIcon, List } from 'lucide-react'
 
@@ -36,7 +40,17 @@ export default function SalaryPage() {
   const [advModal, setAdvModal] = useState<{wid:string}|null>(null)
   const [adjModal, setAdjModal] = useState<{wid:string, type:'bonus'|'penalty'}|null>(null)
   const [numInput, setNumInput] = useState('')
+  const [editTimeModal, setEditTimeModal] = useState<{
+    entry: any,
+    workerName: string,
+    date: string
+  } | null>(null)
+  const [allObjects, setAllObjects] = useState<{id:string, name:string}[]>([])
   const [toast, setToast] = useState('')
+
+  useEffect(() => {
+    getObjects().then(setAllObjects)
+  }, [])
 
   const showToast = (m:string) => { setToast(m); setTimeout(()=>setToast(''),3000) }
 
@@ -463,7 +477,24 @@ export default function SalaryPage() {
                             const day = i + 1
                             const dayData = item.days[day]
                             return (
-                              <td key={i} title={dayData?.object || ''} style={{padding:'10px 4px', textAlign:'center', borderLeft:'1px solid rgba(255,255,255,0.05)', background: dayData ? 'rgba(59,130,246,0.05)' : 'transparent'}}>
+                              <td key={i} 
+                                onClick={() => {
+                                  if (dayData && dayData.entries && dayData.entries.length > 0) {
+                                    setEditTimeModal({
+                                      entry: { ...dayData.entries[0] },
+                                      workerName: `${item.worker.last_name} ${item.worker.first_name}`,
+                                      date: dayData.entries[0].date
+                                    })
+                                  }
+                                }}
+                                title={dayData?.object || ''} 
+                                style={{
+                                  padding:'10px 4px', 
+                                  textAlign:'center', 
+                                  borderLeft:'1px solid rgba(255,255,255,0.05)', 
+                                  background: dayData ? 'rgba(59,130,246,0.05)' : 'transparent',
+                                  cursor: dayData ? 'pointer' : 'default'
+                                }}>
                                 {dayData ? (
                                   <div style={{fontWeight:800, color: dayData.hours >= 10 ? 'var(--orange)' : 'var(--blue)', fontSize:13}}>
                                     {dayData.hours}
@@ -525,6 +556,115 @@ export default function SalaryPage() {
       {toast&&(
         <div style={{position:'fixed',bottom:24,right:24,background:'var(--bg-elevated)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:'var(--radius)',padding:'12px 18px',color:'#fff',fontSize:13,fontWeight:600,zIndex:500,boxShadow:'0 8px 32px rgba(0,0,0,0.4)',display:'flex',alignItems:'center',gap:8}}>
           <Check size={15} color="var(--green)"/> {toast}
+        </div>
+      )}
+      {/* ── EDIT TIME MODAL ── */}
+      {editTimeModal && (
+        <div style={{position:'fixed', inset:0, zIndex:100, background:'rgba(0,0,0,0.8)', display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)'}}>
+          <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', boxShadow:'0 20px 50px rgba(0,0,0,0.5)'}}>
+            <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'linear-gradient(to right, var(--bg-elevated), transparent)'}}>
+              <div>
+                <h3 style={{fontSize:18, fontWeight:800, color:'#fff'}}>Корректировка времени</h3>
+                <div style={{fontSize:12, color:'var(--text-muted)'}}>{editTimeModal.workerName} • {editTimeModal.date}</div>
+              </div>
+              <button onClick={()=>setEditTimeModal(null)} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer'}}>✕</button>
+            </div>
+            
+            <div style={{padding:24, display:'flex', flexDirection:'column', gap:16}}>
+              <div>
+                <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Объект</label>
+                <select 
+                  value={editTimeModal.entry.object_id || ''} 
+                  onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, object_id: e.target.value}})}
+                  style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                >
+                  <option value="">Выберите объект</option>
+                  {allObjects.map(obj => <option key={obj.id} value={obj.id}>{obj.name}</option>)}
+                </select>
+              </div>
+
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                <div>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Начало</label>
+                  <input type="time" 
+                    value={editTimeModal.entry.start_time} 
+                    onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, start_time: e.target.value}})}
+                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                  />
+                </div>
+                <div>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Конец</label>
+                  <input type="time" 
+                    value={editTimeModal.entry.end_time} 
+                    onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, end_time: e.target.value}})}
+                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                  />
+                </div>
+              </div>
+
+              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                <div>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Обед (мин)</label>
+                  <input type="number" 
+                    value={editTimeModal.entry.lunch_min} 
+                    onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, lunch_min: parseInt(e.target.value)||0}})}
+                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                  />
+                </div>
+                <div>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Итого часов</label>
+                  <input type="number" step="0.5"
+                    value={editTimeModal.entry.hours_total} 
+                    onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, hours_total: parseFloat(e.target.value)||0}})}
+                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{padding:24, background:'var(--bg-elevated)', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'space-between', gap:12}}>
+              <button 
+                onClick={async () => {
+                  if (window.confirm('Удалить эту запись?')) {
+                    await deleteTimeEntry(editTimeModal.entry.id)
+                    setEditTimeModal(null)
+                    getMonthlyTimesheet(monthIdx, year, activeTab).then(setTimesheetData)
+                    loadData()
+                  }
+                }}
+                style={{padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', color:'var(--red)', fontWeight:700, cursor:'pointer'}}
+              >
+                Удалить
+              </button>
+              <div style={{display:'flex', gap:12}}>
+                <button onClick={()=>setEditTimeModal(null)} style={{padding:'12px 16px', borderRadius:10, background:'none', border:'1px solid var(--border)', color:'#fff', fontWeight:700, cursor:'pointer'}}>Отмена</button>
+                <button 
+                  onClick={async () => {
+                    await updateTimeEntry(editTimeModal.entry.id, {
+                      objectId: editTimeModal.entry.object_id,
+                      startTime: editTimeModal.entry.start_time,
+                      endTime: editTimeModal.entry.end_time,
+                      lunchMin: editTimeModal.entry.lunch_min,
+                      hoursTotal: editTimeModal.entry.hours_total
+                    })
+                    setEditTimeModal(null)
+                    getMonthlyTimesheet(monthIdx, year, activeTab).then(setTimesheetData)
+                    loadData()
+                    showToast('Время обновлено')
+                  }}
+                  style={{padding:'12px 24px', borderRadius:10, background:'var(--blue)', border:'none', color:'#fff', fontWeight:800, cursor:'pointer', boxShadow:'0 4px 15px rgba(59,130,246,0.3)'}}
+                >
+                  Сохранить
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{position:'fixed', bottom:30, left:'50%', transform:'translateX(-50%)', background:'var(--blue)', color:'#fff', padding:'12px 24px', borderRadius:12, zIndex:1000, fontWeight:700, boxShadow:'0 10px 30px rgba(0,0,0,0.3)', display:'flex', alignItems:'center', gap:10}}>
+          <Check size={18}/> {toast}
         </div>
       )}
     </AppLayout>
