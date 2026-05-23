@@ -61,7 +61,7 @@ export async function login(loginStr: string, passwordStr: string) {
     const cookieStore = await cookies()
     cookieStore.set(SESSION_COOKIE, token, {
       httpOnly: true,
-      secure: false, // Изменено с true на false для работы без HTTPS
+      secure: true,
       expires: expiresAt,
       path: '/'
     })
@@ -171,27 +171,42 @@ export async function logout() {
 export async function getCurrentUser(): Promise<WorkerProfile | null> {
   const cookieStore = await cookies()
   const token = cookieStore.get(SESSION_COOKIE)?.value
-  if (!token) return null
+  console.log('--- getCurrentUser ---')
+  console.log('SESSION_COOKIE name:', SESSION_COOKIE)
+  console.log('Token from cookie:', token)
+  
+  if (!token) {
+    console.log('No token found in cookies!')
+    return null
+  }
 
   try {
     const session = db.prepare('SELECT worker_id, expires_at FROM sessions WHERE id = ?').get(token) as { worker_id: string, expires_at: string } | undefined
-    if (!session) return null
+    console.log('Session from DB:', session)
+    if (!session) {
+      console.log('Session not found in DB!')
+      return null
+    }
 
     if (new Date(session.expires_at) < new Date()) {
+      console.log('Session expired!')
       db.prepare('DELETE FROM sessions WHERE id = ?').run(token)
       cookieStore.delete(SESSION_COOKIE)
       return null
     }
 
     const worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(session.worker_id) as WorkerProfile | undefined
+    console.log('Worker found:', worker ? worker.login : 'none')
     
     if (worker?.is_blocked) {
+      console.log('Worker is blocked!')
       db.prepare('DELETE FROM sessions WHERE id = ?').run(token)
       cookieStore.delete(SESSION_COOKIE)
       return null
     }
 
     if (worker && !worker.is_approved) {
+      console.log('Worker is not approved!')
       db.prepare('DELETE FROM sessions WHERE id = ?').run(token)
       cookieStore.delete(SESSION_COOKIE)
       return null
@@ -199,7 +214,7 @@ export async function getCurrentUser(): Promise<WorkerProfile | null> {
 
     return worker || null
   } catch (err) {
-    console.error('Get user error', err)
+    console.error('Get user error:', err)
     return null
   }
 }
