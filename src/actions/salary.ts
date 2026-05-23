@@ -275,3 +275,22 @@ export async function deleteTimeEntry(id: number) {
 export async function getObjects() {
   return db.prepare('SELECT id, name FROM objects ORDER BY name').all() as { id: string, name: string }[]
 }
+
+export async function createTimeEntry(data: {
+  workerId: string,
+  brigadeId: string,
+  objectId: string,
+  date: string,
+  startTime: string,
+  endTime: string,
+  lunchMin: number,
+  hoursTotal: number
+}) {
+  db.prepare(`
+    INSERT INTO time_entries (worker_id, brigade_id, object_id, date, start_time, end_time, lunch_min, hours_total)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(data.workerId, data.brigadeId, data.objectId, data.date, data.startTime, data.endTime, data.lunchMin, data.hoursTotal)
+  
+  revalidatePath('/salary')
+  return { success: true }
+}

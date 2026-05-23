@@ -224,6 +224,10 @@ function initDb() {
     db.prepare('ALTER TABLE tools ADD COLUMN photo_url TEXT').run()
   } catch (e) {}
 
+  try {
+    db.prepare('ALTER TABLE time_entries ADD COLUMN is_approved INTEGER DEFAULT 1').run()
+  } catch (e) {}
+
   // Сидирование данных (Первичное заполнение для теста)
   const count = db.prepare('SELECT COUNT(*) as count FROM brigades').get() as { count: number }
   if (count.count === 0) {

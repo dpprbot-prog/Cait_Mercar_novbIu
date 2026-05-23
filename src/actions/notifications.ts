@@ -70,3 +70,35 @@ export async function createNotification(workerId: string, type: string, title: 
       .run(workerId, type, title, message)
   }
 }
+
+export async function approvePendingTimeEntry(timeEntryId: number, notificationId: number) {
+  // 1. Approve time entry
+  db.prepare('UPDATE time_entries SET is_approved = 1 WHERE id = ?').run(timeEntryId)
+  
+  // 2. Mark the notification as read
+  db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ?').run(notificationId)
+  
+  // 3. Mark matching notifications as read for all other users (since it is already approved)
+  db.prepare('UPDATE notifications SET is_read = 1 WHERE type = ?').run(`time_approval:${timeEntryId}`)
+  
+  revalidatePath('/')
+  revalidatePath('/salary')
+  revalidatePath('/tabel')
+  return { success: true }
+}
+
+export async function rejectPendingTimeEntry(timeEntryId: number, notificationId: number) {
+  // 1. Delete or keep it with is_approved = -1 (rejected). Let's delete it completely.
+  db.prepare('DELETE FROM time_entries WHERE id = ?').run(timeEntryId)
+  
+  // 2. Mark the notification as read
+  db.prepare('UPDATE notifications SET is_read = 1 WHERE id = ?').run(notificationId)
+  
+  // 3. Mark matching notifications as read for all other users
+  db.prepare('UPDATE notifications SET is_read = 1 WHERE type = ?').run(`time_approval:${timeEntryId}`)
+  
+  revalidatePath('/')
+  revalidatePath('/salary')
+  revalidatePath('/tabel')
+  return { success: true }
+}

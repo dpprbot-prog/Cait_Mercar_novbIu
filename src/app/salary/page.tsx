@@ -10,7 +10,7 @@ import {
 import { 
   getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, 
   BrigadeSalaryData, WorkerSalaryData, getMonthlyTimesheet,
-  getObjects, updateTimeEntry, deleteTimeEntry 
+  getObjects, updateTimeEntry, deleteTimeEntry, createTimeEntry 
 } from '@/actions/salary'
 import { exportSalaryToTemplate } from '@/actions/export'
 import { FileDown, Calendar, Table as TableIcon, List } from 'lucide-react'
@@ -22,6 +22,14 @@ const MONTHS = ['Январь','Февраль','Март','Апрель','Ма�
 // ─────────────────────────────────────────────
 function formatMoney(amount: number) {
   return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(amount)
+}
+
+function calcHours(start: string, end: string, lunch: number): number {
+  if (!start || !end) return 0
+  const [sh, sm] = start.split(':').map(Number)
+  const [eh, em] = end.split(':').map(Number)
+  const totalMin = (eh * 60 + em) - (sh * 60 + sm) - lunch
+  return Math.max(0, Math.round((totalMin / 60) * 100) / 100)
 }
 
 // ─────────────────────────────────────────────
@@ -476,6 +484,11 @@ export default function SalaryPage() {
                           {[...Array(new Date(year, monthIdx + 1, 0).getDate())].map((_, i) => {
                             const day = i + 1
                             const dayData = item.days[day]
+                            
+                            const dayStr = day < 10 ? `0${day}` : `${day}`
+                            const monthStr = (monthIdx + 1) < 10 ? `0${monthIdx + 1}` : `${monthIdx + 1}`
+                            const dateStr = `${dayStr}.${monthStr}.${year}`
+
                             return (
                               <td key={i} 
                                 onClick={() => {
@@ -485,15 +498,31 @@ export default function SalaryPage() {
                                       workerName: `${item.worker.last_name} ${item.worker.first_name}`,
                                       date: dayData.entries[0].date
                                     })
+                                  } else {
+                                    // Создаем новую запись для добавления времени
+                                    setEditTimeModal({
+                                      entry: {
+                                        worker_id: item.worker.id.toString(),
+                                        brigade_id: activeTab,
+                                        object_id: '',
+                                        date: dateStr,
+                                        start_time: '08:00',
+                                        end_time: '17:00',
+                                        lunch_min: 60,
+                                        hours_total: 8
+                                      },
+                                      workerName: `${item.worker.last_name} ${item.worker.first_name}`,
+                                      date: dateStr
+                                    })
                                   }
                                 }}
-                                title={dayData?.object || ''} 
+                                title={dayData?.object ? dayData.object : 'Нажмите, чтобы внести рабочее время'} 
                                 style={{
                                   padding:'10px 4px', 
                                   textAlign:'center', 
                                   borderLeft:'1px solid rgba(255,255,255,0.05)', 
                                   background: dayData ? 'rgba(59,130,246,0.05)' : 'transparent',
-                                  cursor: dayData ? 'pointer' : 'default'
+                                  cursor: 'pointer'
                                 }}>
                                 {dayData ? (
                                   <div style={{fontWeight:800, color: dayData.hours >= 10 ? 'var(--orange)' : 'var(--blue)', fontSize:13}}>
@@ -564,7 +593,9 @@ export default function SalaryPage() {
           <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:20, width:'100%', maxWidth:400, overflow:'hidden', boxShadow:'0 20px 50px rgba(0,0,0,0.5)'}}>
             <div style={{padding:'20px 24px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', background:'linear-gradient(to right, var(--bg-elevated), transparent)'}}>
               <div>
-                <h3 style={{fontSize:18, fontWeight:800, color:'#fff'}}>Корректировка времени</h3>
+                <h3 style={{fontSize:18, fontWeight:800, color:'#fff'}}>
+                  {editTimeModal.entry.id ? 'Корректировка времени' : 'Добавление рабочего времени'}
+                </h3>
                 <div style={{fontSize:12, color:'var(--text-muted)'}}>{editTimeModal.workerName} • {editTimeModal.date}</div>
               </div>
               <button onClick={()=>setEditTimeModal(null)} style={{background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer'}}>✕</button>
@@ -587,16 +618,38 @@ export default function SalaryPage() {
                 <div>
                   <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Начало</label>
                   <input type="time" 
-                    value={editTimeModal.entry.start_time} 
-                    onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, start_time: e.target.value}})}
+                    value={editTimeModal.entry.start_time || ''} 
+                    onChange={e => {
+                      const newStart = e.target.value
+                      const newHours = calcHours(newStart, editTimeModal.entry.end_time || '', editTimeModal.entry.lunch_min || 0)
+                      setEditTimeModal({
+                        ...editTimeModal,
+                        entry: {
+                          ...editTimeModal.entry,
+                          start_time: newStart,
+                          hours_total: newHours
+                        }
+                      })
+                    }}
                     style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
                   />
                 </div>
                 <div>
                   <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Конец</label>
                   <input type="time" 
-                    value={editTimeModal.entry.end_time} 
-                    onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, end_time: e.target.value}})}
+                    value={editTimeModal.entry.end_time || ''} 
+                    onChange={e => {
+                      const newEnd = e.target.value
+                      const newHours = calcHours(editTimeModal.entry.start_time || '', newEnd, editTimeModal.entry.lunch_min || 0)
+                      setEditTimeModal({
+                        ...editTimeModal,
+                        entry: {
+                          ...editTimeModal.entry,
+                          end_time: newEnd,
+                          hours_total: newHours
+                        }
+                      })
+                    }}
                     style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
                   />
                 </div>
@@ -606,15 +659,26 @@ export default function SalaryPage() {
                 <div>
                   <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Обед (мин)</label>
                   <input type="number" 
-                    value={editTimeModal.entry.lunch_min} 
-                    onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, lunch_min: parseInt(e.target.value)||0}})}
+                    value={editTimeModal.entry.lunch_min === undefined ? '' : editTimeModal.entry.lunch_min} 
+                    onChange={e => {
+                      const newLunch = parseInt(e.target.value) || 0
+                      const newHours = calcHours(editTimeModal.entry.start_time || '', editTimeModal.entry.end_time || '', newLunch)
+                      setEditTimeModal({
+                        ...editTimeModal,
+                        entry: {
+                          ...editTimeModal.entry,
+                          lunch_min: newLunch,
+                          hours_total: newHours
+                        }
+                      })
+                    }}
                     style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
                   />
                 </div>
                 <div>
                   <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Итого часов</label>
                   <input type="number" step="0.5"
-                    value={editTimeModal.entry.hours_total} 
+                    value={editTimeModal.entry.hours_total === undefined ? '' : editTimeModal.entry.hours_total} 
                     onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, hours_total: parseFloat(e.target.value)||0}})}
                     style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
                   />
@@ -623,34 +687,52 @@ export default function SalaryPage() {
             </div>
 
             <div style={{padding:24, background:'var(--bg-elevated)', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'space-between', gap:12}}>
-              <button 
-                onClick={async () => {
-                  if (window.confirm('Удалить эту запись?')) {
-                    await deleteTimeEntry(editTimeModal.entry.id)
-                    setEditTimeModal(null)
-                    getMonthlyTimesheet(monthIdx, year, activeTab).then(setTimesheetData)
-                    loadData()
-                  }
-                }}
-                style={{padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', color:'var(--red)', fontWeight:700, cursor:'pointer'}}
-              >
-                Удалить
-              </button>
+              {editTimeModal.entry.id ? (
+                <button 
+                  onClick={async () => {
+                    if (window.confirm('Удалить эту запись?')) {
+                      await deleteTimeEntry(editTimeModal.entry.id)
+                      setEditTimeModal(null)
+                      getMonthlyTimesheet(monthIdx, year, activeTab).then(setTimesheetData)
+                      loadData()
+                    }
+                  }}
+                  style={{padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.2)', color:'var(--red)', fontWeight:700, cursor:'pointer'}}
+                >
+                  Удалить
+                </button>
+              ) : (
+                <div />
+              )}
               <div style={{display:'flex', gap:12}}>
                 <button onClick={()=>setEditTimeModal(null)} style={{padding:'12px 16px', borderRadius:10, background:'none', border:'1px solid var(--border)', color:'#fff', fontWeight:700, cursor:'pointer'}}>Отмена</button>
                 <button 
                   onClick={async () => {
-                    await updateTimeEntry(editTimeModal.entry.id, {
-                      objectId: editTimeModal.entry.object_id,
-                      startTime: editTimeModal.entry.start_time,
-                      endTime: editTimeModal.entry.end_time,
-                      lunchMin: editTimeModal.entry.lunch_min,
-                      hoursTotal: editTimeModal.entry.hours_total
-                    })
+                    if (editTimeModal.entry.id) {
+                      await updateTimeEntry(editTimeModal.entry.id, {
+                        objectId: editTimeModal.entry.object_id,
+                        startTime: editTimeModal.entry.start_time,
+                        endTime: editTimeModal.entry.end_time,
+                        lunchMin: editTimeModal.entry.lunch_min,
+                        hoursTotal: editTimeModal.entry.hours_total
+                      })
+                      showToast('Время обновлено')
+                    } else {
+                      await createTimeEntry({
+                        workerId: editTimeModal.entry.worker_id,
+                        brigadeId: editTimeModal.entry.brigade_id,
+                        objectId: editTimeModal.entry.object_id,
+                        date: editTimeModal.entry.date,
+                        startTime: editTimeModal.entry.start_time,
+                        endTime: editTimeModal.entry.end_time,
+                        lunchMin: editTimeModal.entry.lunch_min,
+                        hoursTotal: editTimeModal.entry.hours_total
+                      })
+                      showToast('Время успешно добавлено')
+                    }
                     setEditTimeModal(null)
                     getMonthlyTimesheet(monthIdx, year, activeTab).then(setTimesheetData)
                     loadData()
-                    showToast('Время обновлено')
                   }}
                   style={{padding:'12px 24px', borderRadius:10, background:'var(--blue)', border:'none', color:'#fff', fontWeight:800, cursor:'pointer', boxShadow:'0 4px 15px rgba(59,130,246,0.3)'}}
                 >

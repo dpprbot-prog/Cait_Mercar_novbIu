@@ -11,7 +11,9 @@ import {
   markAsRead, 
   markAllAsRead, 
   getNotificationSettings, 
-  updateNotificationSettings 
+  updateNotificationSettings,
+  approvePendingTimeEntry,
+  rejectPendingTimeEntry
 } from '@/actions/notifications'
 import { updateWorkerAdmin } from '@/actions/admin'
 import Modal from './Modal'
@@ -340,19 +342,58 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     {notifications.length === 0 ? (
                       <div className="notif-empty">Нет уведомлений</div>
                     ) : (
-                      notifications.map(n => (
-                        <div 
-                          key={n.id} 
-                          className={`notif-item ${!n.is_read ? 'unread' : ''}`}
-                          onClick={() => handleMarkRead(n.id)}
-                        >
-                          <div className="notif-title">{n.title}</div>
-                          <div className="notif-message">{n.message}</div>
-                          <div className="notif-time">
-                            {new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                      notifications.map(n => {
+                        const isApproval = n.type && n.type.startsWith('time_approval:')
+                        const timeEntryId = isApproval ? parseInt(n.type.split(':')[1], 10) : null
+                        
+                        return (
+                          <div 
+                            key={n.id} 
+                            className={`notif-item ${!n.is_read ? 'unread' : ''}`}
+                            onClick={() => !isApproval && handleMarkRead(n.id)}
+                            style={{ cursor: isApproval ? 'default' : 'pointer' }}
+                          >
+                            <div className="notif-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span>{n.title}</span>
+                              {isApproval && !n.is_read && (
+                                <span style={{ background: 'var(--orange)', color: '#fff', fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>Ожидает</span>
+                              )}
+                            </div>
+                            <div className="notif-message" style={{ fontSize: 12, marginTop: 4, opacity: 0.9 }}>{n.message}</div>
+                            
+                            {isApproval && !n.is_read && (
+                              <div style={{ display: 'flex', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
+                                <button 
+                                  onClick={async () => {
+                                    await approvePendingTimeEntry(timeEntryId!, n.id)
+                                    const fresh = await getNotifications()
+                                    setNotifications(fresh)
+                                  }}
+                                  style={{ flex: 1, padding: '6px 10px', background: 'var(--green)', border: 'none', borderRadius: 6, color: '#fff', fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                  Одобрить
+                                </button>
+                                <button 
+                                  onClick={async () => {
+                                    if (window.confirm('Отклонить и удалить эту запись времени?')) {
+                                      await rejectPendingTimeEntry(timeEntryId!, n.id)
+                                      const fresh = await getNotifications()
+                                      setNotifications(fresh)
+                                    }
+                                  }}
+                                  style={{ flex: 1, padding: '6px 10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: 6, color: 'var(--red)', fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                  Отклонить
+                                </button>
+                              </div>
+                            )}
+                            
+                            <div className="notif-time" style={{ marginTop: isApproval ? 6 : 4, fontSize: 10, opacity: 0.5 }}>
+                              {new Date(n.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        )
+                      })
                     )}
                   </div>
                 </div>

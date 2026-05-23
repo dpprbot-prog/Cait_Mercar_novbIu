@@ -64,22 +64,20 @@ export default function TabelPage() {
     getBrigadeWorkersWithEntries(activeBrigadeId, dateStr).then(workers => {
       setMyBrigadeWorkers(workers)
       
-      // Auto-fill form for current user if viewing today
-      if (dateOffset === 0) {
-        const me = workers.find(w => w.id === CURRENT_USER_ID)
-        if (me && me.hoursTotal > 0) {
-          setObject(me.object)
-          setStart(me.startTime)
-          setEnd(me.endTime)
-          setLunch(me.lunchMin)
-          setSubmitted(true)
-        } else {
-          setObject('')
-          setStart('08:00')
-          setEnd('17:00')
-          setLunch(0)
-          setSubmitted(false)
-        }
+      // Auto-fill form for current user
+      const me = workers.find(w => w.id === CURRENT_USER_ID)
+      if (me && me.hoursTotal > 0) {
+        setObject(me.object)
+        setStart(me.startTime)
+        setEnd(me.endTime)
+        setLunch(me.lunchMin)
+        setSubmitted(true)
+      } else {
+        setObject('')
+        setStart('08:00')
+        setEnd('17:00')
+        setLunch(0)
+        setSubmitted(false)
       }
     })
   }, [activeBrigadeId, dateOffset])
@@ -93,6 +91,8 @@ export default function TabelPage() {
     setIsOnline(navigator.onLine)
     return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
   }, [])
+
+  const canEditOrWrite = dateOffset === 0 || user?.role === 'Админ' || user?.role === 'Мастер' || user?.role === 'Бригадир'
 
   const hours = calcHours(startTime, endTime, lunchMin)
 
@@ -231,6 +231,34 @@ export default function TabelPage() {
               <span className="calculated-hours-value">{hours > 0 ? `${hours} ч` : '—'}</span>
             </div>
 
+            {/* Pending Confirmation Warning */}
+            {(() => {
+              const me = myBrigadeWorkers.find(w => w.id === CURRENT_USER_ID)
+              if (submitted && me && me.isApproved === 0) {
+                return (
+                  <div style={{
+                    background: 'rgba(234, 179, 8, 0.08)',
+                    border: '1px solid rgba(234, 179, 8, 0.25)',
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    color: 'var(--yellow)',
+                    fontSize: 11,
+                    textAlign: 'center',
+                    fontWeight: 700,
+                    marginBottom: 12,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    lineHeight: '1.4'
+                  }}>
+                    ⌛ Внесение времени за прошедший день требует одобрения Мастера или Админа. Запись отправлена на подтверждение.
+                  </div>
+                )
+              }
+              return null
+            })()}
+
             {/* Submit */}
             {!submitted ? (
               <button
@@ -291,7 +319,7 @@ export default function TabelPage() {
           {/* Members */}
           {myBrigadeWorkers.map(member => (
               <div className="member-row" key={member.id} style={{ 
-                borderLeft: member.hoursTotal > 0 ? '3px solid var(--green)' : '3px solid transparent'
+                borderLeft: member.hoursTotal > 0 ? (member.isApproved === 0 ? '3px solid var(--yellow)' : '3px solid var(--green)') : '3px solid transparent'
               }}>
                 <div
                   className="member-avatar"
@@ -319,8 +347,10 @@ export default function TabelPage() {
                 <div className="member-hours">
                   {member.hoursTotal > 0 ? (
                     <>
-                      <div className="member-hours-value">{member.hoursTotal}</div>
-                      <div className="member-hours-label">ч</div>
+                      <div className="member-hours-value" style={{ color: member.isApproved === 0 ? 'var(--yellow)' : 'var(--green)' }}>{member.hoursTotal}</div>
+                      <div className="member-hours-label" style={{ color: member.isApproved === 0 ? 'var(--yellow)' : 'var(--text-muted)' }}>
+                        {member.isApproved === 0 ? 'ожидает' : 'ч'}
+                      </div>
                     </>
                   ) : (
                     <div className="member-hours-value" style={{ color: 'var(--text-muted)', fontSize: 14 }}>—</div>
