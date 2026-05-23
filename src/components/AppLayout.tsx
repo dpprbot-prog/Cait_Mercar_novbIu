@@ -15,7 +15,7 @@ import {
   approvePendingTimeEntry,
   rejectPendingTimeEntry
 } from '@/actions/notifications'
-import { updateWorkerAdmin } from '@/actions/admin'
+import { updateWorkerAdmin, deployFromServer } from '@/actions/admin'
 import Modal from './Modal'
 
 const NAV = [
@@ -69,6 +69,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     type: 'info'
   })
   
+  const [deployState, setDeployState] = useState<'idle' | 'deploying' | 'success'>('idle')
+
   useEffect(() => {
     const loadNotifs = async () => {
       const [n, s] = await Promise.all([
@@ -304,6 +306,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               >
                 СОХРАНИТЬ ИЗМЕНЕНИЯ
               </button>
+
+              {user.role === 'Админ' && (
+                <div style={{ borderTop: '1px solid var(--border)', marginTop: 20, paddingTop: 20 }}>
+                  <h4 style={{ margin: '0 0 12px 0', fontSize: 13, opacity: 0.7, display: 'flex', alignItems: 'center', gap: 8, color: '#fff' }}>
+                    🚀 Обновление сайта на сервере
+                  </h4>
+                  <button 
+                    onClick={async () => {
+                      if (window.confirm('Вы уверены, что хотите обновить код с GitHub и перезапустить сервер? Процесс займет около 15 секунд.')) {
+                        setDeployState('deploying')
+                        const res = await deployFromServer()
+                        if (res.success) {
+                          setDeployState('success')
+                          setTimeout(() => window.location.reload(), 15000)
+                        } else {
+                          setDeployState('idle')
+                          alert(res.error || 'Ошибка при обновлении')
+                        }
+                      }
+                    }}
+                    disabled={deployState === 'deploying' || deployState === 'success'}
+                    style={{ 
+                      width: '100%', background: deployState === 'deploying' ? 'var(--orange)' : deployState === 'success' ? 'var(--green)' : 'var(--blue)', color: '#fff', border: 'none', 
+                      borderRadius: 10, padding: 14, fontWeight: 800, cursor: deployState === 'deploying' || deployState === 'success' ? 'not-allowed' : 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+                    }}
+                  >
+                    {deployState === 'deploying' ? 'ОБНОВЛЕНИЕ И СБОРКА...' : deployState === 'success' ? 'ПЕРЕЗАПУСК САЙТА (15 С)...' : 'СКАЧАТЬ С GITHUB И ОБНОВИТЬ'}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>

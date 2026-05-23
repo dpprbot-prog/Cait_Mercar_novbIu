@@ -4,6 +4,7 @@ import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser, hashPassword } from './auth'
 import { logAction } from './history'
+import { exec } from 'child_process'
 
 async function checkAdmin() {
   const user = await getCurrentUser()
@@ -374,5 +375,21 @@ export async function approveWorker(workerId: string, data: { role: string, brig
   } catch (error: any) {
     console.error('Approve worker error:', error)
     return { success: false, error: error.message || 'Ошибка одобрения' }
+  }
+}
+
+export async function deployFromServer() {
+  try {
+    await checkAdmin()
+    
+    // Выполняем асинхронное обновление на сервере
+    exec('sleep 2 && git pull && npm run build && pm2 restart mercare-3d', {
+      cwd: '/var/www/mercare/Mercare3D/merkare-app'
+    })
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error('Deploy error:', error)
+    return { success: false, error: error.message || 'Ошибка запуска обновления' }
   }
 }
