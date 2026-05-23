@@ -25,7 +25,7 @@ export interface WorkerProfile {
   is_approved: number
 }
 
-const SESSION_COOKIE = 'merkare_session'
+const SESSION_COOKIE = 'merkare_session_3d'
 
 // Хеш пароля (в реальном проекте используем сложную соль, здесь для удобства базовый sha256)
 export async function hashPassword(password: string) {
