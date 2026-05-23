@@ -1,8 +1,13 @@
 import Database from 'better-sqlite3'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+const dbPath = path.resolve(__dirname, '../../merkare.db')
 
 // Подключаемся к файлу БД (создастся в корне проекта, если не существует).
-const db = new Database(path.join(process.cwd(), 'merkare.db'))
+const db = new Database(dbPath)
 
 // Инициализация таблиц базы данных
 function initDb() {
