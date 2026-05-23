@@ -61,7 +61,7 @@ export async function login(loginStr: string, passwordStr: string) {
     const cookieStore = await cookies()
     cookieStore.set(SESSION_COOKIE, token, {
       httpOnly: true,
-      secure: true,
+      secure: false,
       expires: expiresAt,
       path: '/'
     })
