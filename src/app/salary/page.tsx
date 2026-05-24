@@ -480,11 +480,27 @@ export default function SalaryPage() {
                   <thead>
                     <tr style={{background:'var(--bg-elevated)'}}>
                       <th style={{position:'sticky', left:0, zIndex:10, background:'var(--bg-elevated)', padding:'12px 14px', textAlign:'left', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'2px solid var(--border)', width:200}}>Сотрудник</th>
-                      {[...Array(new Date(year, monthIdx + 1, 0).getDate())].map((_, i) => (
-                        <th key={i} style={{padding:'10px 4px', textAlign:'center', fontSize:11, color:'var(--text-muted)', borderBottom:'2px solid var(--border)', width:35, borderLeft:'1px solid rgba(255,255,255,0.05)'}}>
-                          {i + 1}
-                        </th>
-                      ))}
+                      {[...Array(new Date(year, monthIdx + 1, 0).getDate())].map((_, i) => {
+                        const date = new Date(year, monthIdx, i + 1)
+                        const dayOfWeek = date.getDay()
+                        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+                        const dayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][dayOfWeek]
+                        return (
+                          <th key={i} style={{
+                            padding:'6px 4px', 
+                            textAlign:'center', 
+                            fontSize:11, 
+                            color: isWeekend ? 'var(--orange)' : 'var(--text-muted)', 
+                            background: isWeekend ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-elevated)', 
+                            borderBottom:'2px solid var(--border)', 
+                            width:35, 
+                            borderLeft:'1px solid rgba(255,255,255,0.05)'
+                          }}>
+                            <div>{i + 1}</div>
+                            <div style={{fontSize:9, opacity: 0.6, marginTop: 2}}>{dayName}</div>
+                          </th>
+                        )
+                      })}
                       <th style={{padding:'12px 14px', textAlign:'center', fontSize:11, color:'var(--blue)', fontWeight:800, textTransform:'uppercase', borderBottom:'2px solid var(--border)', width:70}}>Итого</th>
                     </tr>
                   </thead>
@@ -505,6 +521,9 @@ export default function SalaryPage() {
                             const dayStr = day < 10 ? `0${day}` : `${day}`
                             const monthStr = (monthIdx + 1) < 10 ? `0${monthIdx + 1}` : `${monthIdx + 1}`
                             const dateStr = `${dayStr}.${monthStr}.${year}`
+
+                            const dateObj = new Date(year, monthIdx, day)
+                            const isWeekendCell = dateObj.getDay() === 0 || dateObj.getDay() === 6
 
                             return (
                               <td key={i} 
@@ -538,7 +557,7 @@ export default function SalaryPage() {
                                   padding:'10px 4px', 
                                   textAlign:'center', 
                                   borderLeft:'1px solid rgba(255,255,255,0.05)', 
-                                  background: dayData ? 'rgba(59,130,246,0.05)' : 'transparent',
+                                  background: dayData ? 'rgba(59,130,246,0.08)' : (isWeekendCell ? 'rgba(239, 68, 68, 0.03)' : 'transparent'),
                                   cursor: 'pointer'
                                 }}>
                                 {dayData ? (
