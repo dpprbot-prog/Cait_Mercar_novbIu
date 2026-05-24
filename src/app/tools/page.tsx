@@ -436,15 +436,14 @@ export default function ToolsPage() {
             </div>
 
             {exp && catTools.map(tool=>(
-              <div key={tool.id} style={{padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,0.04)',display:'flex',alignItems:'center',gap:12}}>
-                {/* Inv + Condition */}
-                <div style={{flexShrink:0,textAlign:'center',width:60}}>
-                  <div style={{fontSize:10,color:'var(--text-muted)',marginBottom:2}}>{tool.inventoryNum}</div>
-                  <div style={{width:8,height:8,borderRadius:'50%',background:COND_COLOR[tool.condition],margin:'0 auto', marginBottom:6}}/>
+              <div key={tool.id} style={{padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,0.04)',display:'flex',alignItems:'center',gap:16}}>
+                {/* Condition + Photo */}
+                <div style={{flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',width:40,gap:6}}>
+                  <div style={{width:8,height:8,borderRadius:'50%',background:COND_COLOR[tool.condition]}} title={`Состояние: ${tool.condition === 'good' ? 'Отличное' : tool.condition === 'fair' ? 'Среднее' : 'Плохое'}`}/>
                   {tool.photo_url && (
                     <div 
                       onClick={() => tool.photo_url && window.open(tool.photo_url, '_blank')}
-                      style={{width:32, height:32, borderRadius:4, overflow:'hidden', margin:'0 auto', border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer'}}
+                      style={{width:32, height:32, borderRadius:6, overflow:'hidden', border:'1px solid rgba(255,255,255,0.1)', cursor:'pointer'}}
                     >
                       <img src={tool.photo_url} style={{width:'100%', height:'100%', objectFit:'cover'}} alt="Инструмент"/>
                     </div>
@@ -453,7 +452,22 @@ export default function ToolsPage() {
 
                 {/* Info */}
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:700,fontSize:14,color:'#fff',marginBottom:4}}>{tool.name}</div>
+                  <div style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:6}}>
+                    <span style={{fontWeight:700,fontSize:14,color:'#fff'}}>{tool.name}</span>
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      fontFamily: 'monospace',
+                      background: 'rgba(255,255,255,0.06)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'var(--text-secondary)',
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      letterSpacing: 0.5
+                    }} title="Инвентарный номер">
+                      #{tool.inventoryNum}
+                    </span>
+                  </div>
                   
                   {tool.status==='available' && <div style={{fontSize:12,color:'var(--green)'}}>📦 На складе</div>}
                   
