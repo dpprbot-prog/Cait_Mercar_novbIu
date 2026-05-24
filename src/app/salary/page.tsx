@@ -341,11 +341,11 @@ export default function SalaryPage() {
                       value={activeB.potAmount===0 ? '' : activeB.potAmount.toLocaleString('ru-RU')}
                       onChange={e=>changePot(e.target.value)}
                       onBlur={savePot}
-                      placeholder="Окладный режим (0 ₽)"
+                      placeholder="Окладный режим"
                       style={{
                         background:'var(--bg-elevated)', border:'1px solid var(--border-light)', borderRadius:8, 
-                        padding:'10px 16px', fontSize:22, fontWeight:900, color:'#fff', outline:'none',
-                        width: '100%', maxWidth: '250px', borderBottom:`2px solid ${activeB.potAmount>0 ? 'var(--blue)' : 'var(--border-light)'}`
+                        padding:'10px 16px', fontSize:18, fontWeight:900, color:'#fff', outline:'none',
+                        width: '100%', maxWidth: '320px', borderBottom:`2px solid ${activeB.potAmount>0 ? 'var(--blue)' : 'var(--border-light)'}`
                       }}
                     />
                   </div>
@@ -456,8 +456,25 @@ export default function SalaryPage() {
                                 <button onClick={()=>setAdvModal({wid:w.id})} style={{padding:'4px 8px',borderRadius:4,background:'var(--yellow-dim)',color:'var(--yellow)',border:'none',fontSize:10,fontWeight:700,cursor:'pointer'}}>АВАНС</button>
                               </div>
                               
-                              {!isPaid && finalPay > 0 && (
-                                <button onClick={()=>payWorker(w.id)} style={{padding:'0 12px',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',color:'#fff',borderRadius:6,fontWeight:700,fontSize:12,cursor:'pointer',height:46, transition:'0.2s'}}>
+                              {!isPaid && (
+                                <button 
+                                  onClick={() => { if (finalPay > 0) payWorker(w.id) }} 
+                                  disabled={finalPay <= 0}
+                                  style={{
+                                    padding:'0 12px',
+                                    background:'var(--bg-elevated)',
+                                    border:'1px solid var(--border-light)',
+                                    color: finalPay > 0 ? '#fff' : 'rgba(255,255,255,0.2)',
+                                    borderRadius:6,
+                                    fontWeight:700,
+                                    fontSize:12,
+                                    cursor: finalPay > 0 ? 'pointer' : 'not-allowed',
+                                    opacity: finalPay > 0 ? 1 : 0.4,
+                                    height:46, 
+                                    transition:'0.2s'
+                                  }}
+                                  title={finalPay <= 0 ? "Сначала начислите рабочие часы или премию" : "Выдать зарплату сотруднику"}
+                                >
                                   ЗП
                                 </button>
                               )}
