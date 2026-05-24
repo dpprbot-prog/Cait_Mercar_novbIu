@@ -60,6 +60,10 @@ export default function SalaryPage() {
   const [viewMode, setViewMode] = useState<'list' | 'timesheet'>('timesheet')
   const [timesheetData, setTimesheetData] = useState<any>(null)
   
+  const today = useMemo(() => new Date(), [])
+  const isCurrentMonth = today.getMonth() === monthIdx && today.getFullYear() === year
+  const todayDateNum = today.getDate()
+  
   // Modals / Inputs
   const [advModal, setAdvModal] = useState<{wid:string}|null>(null)
   const [adjModal, setAdjModal] = useState<{wid:string, type:'bonus'|'penalty'}|null>(null)
@@ -475,29 +479,63 @@ export default function SalaryPage() {
                 <div style={{fontSize:12, color:'var(--text-muted)'}}>Листайте вправо для просмотра всех дат →</div>
               </div>
               
-              <div style={{overflowX:'auto', width:'100%'}}>
+              <div className="custom-tabel-scroll" style={{overflowX:'auto', width:'100%'}}>
+                <style dangerouslySetInnerHTML={{__html: `
+                  .custom-tabel-scroll::-webkit-scrollbar {
+                    height: 8px;
+                  }
+                  .custom-tabel-scroll::-webkit-scrollbar-track {
+                    background: rgba(255,255,255,0.02);
+                    border-radius: 4px;
+                  }
+                  .custom-tabel-scroll::-webkit-scrollbar-thumb {
+                    background: rgba(255,255,255,0.08);
+                    border-radius: 4px;
+                  }
+                  .custom-tabel-scroll::-webkit-scrollbar-thumb:hover {
+                    background: rgba(59,130,246,0.3);
+                  }
+                `}} />
                 <table style={{width:'100%', borderCollapse:'collapse', minWidth:1200}}>
                   <thead>
                     <tr style={{background:'var(--bg-elevated)'}}>
-                      <th style={{position:'sticky', left:0, zIndex:10, background:'var(--bg-elevated)', padding:'12px 14px', textAlign:'left', fontSize:11, color:'var(--text-muted)', textTransform:'uppercase', borderBottom:'2px solid var(--border)', width:200}}>Сотрудник</th>
+                      <th style={{
+                        position:'sticky', 
+                        left:0, 
+                        zIndex:10, 
+                        background:'var(--bg-elevated)', 
+                        padding:'12px 14px', 
+                        textAlign:'left', 
+                        fontSize:11, 
+                        color:'rgba(255,255,255,0.8)', 
+                        textTransform:'uppercase', 
+                        borderBottom:'2px solid var(--border)', 
+                        width:200,
+                        boxShadow: '4px 0 8px -2px rgba(0,0,0,0.5)',
+                        borderRight: '1px solid var(--border)'
+                      }}>Сотрудник</th>
                       {[...Array(new Date(year, monthIdx + 1, 0).getDate())].map((_, i) => {
-                        const date = new Date(year, monthIdx, i + 1)
+                        const dayNum = i + 1
+                        const date = new Date(year, monthIdx, dayNum)
                         const dayOfWeek = date.getDay()
                         const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
+                        const isToday = isCurrentMonth && dayNum === todayDateNum
                         const dayName = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'][dayOfWeek]
                         return (
                           <th key={i} style={{
                             padding:'6px 4px', 
                             textAlign:'center', 
                             fontSize:11, 
-                            color: isWeekend ? 'var(--orange)' : 'var(--text-muted)', 
-                            background: isWeekend ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-elevated)', 
-                            borderBottom:'2px solid var(--border)', 
+                            color: isToday ? '#fff' : (isWeekend ? 'var(--orange)' : 'rgba(255, 255, 255, 0.45)'), 
+                            background: isToday ? 'rgba(59, 130, 246, 0.18)' : (isWeekend ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-elevated)'), 
+                            borderBottom: isToday ? '2px solid var(--blue)' : '2px solid var(--border)', 
+                            boxShadow: isToday ? 'inset 0 0 8px rgba(59, 130, 246, 0.3)' : 'none',
                             width:35, 
-                            borderLeft:'1px solid rgba(255,255,255,0.05)'
+                            borderLeft: isToday ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255,255,255,0.05)',
+                            textTransform: 'uppercase'
                           }}>
-                            <div>{i + 1}</div>
-                            <div style={{fontSize:9, opacity: 0.6, marginTop: 2}}>{dayName}</div>
+                            <div style={{fontWeight: isToday ? 900 : 700}}>{dayNum}</div>
+                            <div style={{fontSize:9, opacity: isToday ? 0.9 : 0.6, marginTop: 2, fontWeight: isToday ? 900 : 500}}>{dayName}</div>
                           </th>
                         )
                       })}
@@ -510,7 +548,15 @@ export default function SalaryPage() {
                       const total = Math.round(rawTotal * 100) / 100
                       return (
                         <tr key={item.worker.id} style={{borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
-                          <td style={{position:'sticky', left:0, zIndex:10, background:'var(--bg-surface)', padding:'12px 14px', borderRight:'2px solid var(--border)'}}>
+                          <td style={{
+                            position:'sticky', 
+                            left:0, 
+                            zIndex:10, 
+                            background:'var(--bg-surface)', 
+                            padding:'12px 14px', 
+                            borderRight:'1px solid var(--border)',
+                            boxShadow: '4px 0 8px -2px rgba(0,0,0,0.5)'
+                          }}>
                             <div style={{fontWeight:700, color:'#fff', fontSize:13}}>{item.worker.last_name} {item.worker.first_name[0]}.</div>
                             <div style={{fontSize:10, color:'var(--text-muted)'}}>{item.worker.role}</div>
                           </td>
@@ -524,6 +570,7 @@ export default function SalaryPage() {
 
                             const dateObj = new Date(year, monthIdx, day)
                             const isWeekendCell = dateObj.getDay() === 0 || dateObj.getDay() === 6
+                            const isTodayCell = isCurrentMonth && day === todayDateNum
 
                             return (
                               <td key={i} 
@@ -556,8 +603,12 @@ export default function SalaryPage() {
                                 style={{
                                   padding:'10px 4px', 
                                   textAlign:'center', 
-                                  borderLeft:'1px solid rgba(255,255,255,0.05)', 
-                                  background: dayData ? 'rgba(59,130,246,0.08)' : (isWeekendCell ? 'rgba(239, 68, 68, 0.03)' : 'transparent'),
+                                  borderLeft: isTodayCell ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255,255,255,0.05)', 
+                                  borderRight: isTodayCell ? '1px solid rgba(59, 130, 246, 0.3)' : 'none',
+                                  background: dayData 
+                                    ? (isTodayCell ? 'rgba(59, 130, 246, 0.18)' : 'rgba(59, 130, 246, 0.08)') 
+                                    : (isTodayCell ? 'rgba(59, 130, 246, 0.05)' : (isWeekendCell ? 'rgba(239, 68, 68, 0.03)' : 'transparent')),
+                                  boxShadow: isTodayCell ? 'inset 0 0 6px rgba(59, 130, 246, 0.2)' : 'none',
                                   cursor: 'pointer'
                                 }}>
                                 {dayData ? (
