@@ -17,7 +17,7 @@ export default function EmployeesPage() {
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [brigadeFilter, setBrigadeFilter] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all') // all, active, blocked
+  const [statusFilter, setStatusFilter] = useState('active') // all, active, blocked
   const [loading, setLoading] = useState(true)
 
   const [showEdit, setShowEdit] = useState(false)
