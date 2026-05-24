@@ -1,10 +1,12 @@
 import Database from 'better-sqlite3'
 import path from 'path'
-import { fileURLToPath } from 'url'
 
-const __filename = fileURLToPath(import.meta.url)
-const __dirname = path.dirname(__filename)
-const dbPath = path.resolve(__dirname, '../../merkare.db')
+// Умное разрешение пути для обхода бага автоопределения корня Next.js на сервере.
+let dbPath = path.join(process.cwd(), 'merkare.db')
+
+if (process.cwd() === '/var/www/mercare') {
+  dbPath = '/var/www/mercare/Mercare3D/merkare-app/merkare.db'
+}
 
 // Подключаемся к файлу БД (создастся в корне проекта, если не существует).
 const db = new Database(dbPath)
