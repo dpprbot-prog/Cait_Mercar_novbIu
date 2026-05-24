@@ -377,31 +377,31 @@ export default function SalaryPage() {
               </div>
 
               {/* Money Flow Dashboard */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16, marginBottom: 16 }}>
+              <div className="stat-cards" style={{ marginBottom: 16 }}>
                 {activeB.potAmount > 0 && (
-                  <div style={{background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-                    <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--blue)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Briefcase size={14}/> Остаток котла</div>
-                    <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.remainingPot)}</div>
-                    <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Фонд для премий</div>
+                  <div className="stat-card" style={{background:'rgba(59,130,246,0.1)', border:'1px solid rgba(59,130,246,0.3)', minHeight: 110}}>
+                    <div className="stat-label" style={{display:'flex', alignItems:'center', gap:6, color:'var(--blue)', margin: 0}}><Briefcase size={14}/> Остаток котла</div>
+                    <div className="stat-value" style={{fontSize:20, fontWeight:900, color:'#fff', marginTop: 4}}>{formatMoney(math.top.remainingPot)}</div>
+                    <div style={{fontSize:10, color:'var(--text-muted)', marginTop:6}}>Фонд для премий</div>
                   </div>
                 )}
 
-                <div style={{background:'var(--green-dim)', border:'1px solid rgba(34,197,94,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-                  <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--green)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Banknote size={14}/> На руки бригаде</div>
-                  <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.toPay)}</div>
-                  <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Сумма к физической выдаче</div>
+                <div className="stat-card" style={{background:'var(--green-dim)', border:'1px solid rgba(34,197,94,0.3)', minHeight: 110}}>
+                  <div className="stat-label" style={{display:'flex', alignItems:'center', gap:6, color:'var(--green)', margin: 0}}><Banknote size={14}/> На руки бригаде</div>
+                  <div className="stat-value" style={{fontSize:20, fontWeight:900, color:'#fff', marginTop: 4}}>{formatMoney(math.top.toPay)}</div>
+                  <div style={{fontSize:10, color:'var(--text-muted)', marginTop:6}}>К физической выдаче</div>
                 </div>
                 
-                <div style={{background:'rgba(234,179,8,0.08)', border:'1px solid rgba(234,179,8,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-                  <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--yellow)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><HandCoins size={14}/> Возврат за авансы</div>
-                  <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.advances)}</div>
-                  <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Отдать спонсору / прорабу</div>
+                <div className="stat-card" style={{background:'rgba(234,179,8,0.08)', border:'1px solid rgba(234,179,8,0.3)', minHeight: 110}}>
+                  <div className="stat-label" style={{display:'flex', alignItems:'center', gap:6, color:'var(--yellow)', margin: 0}}><HandCoins size={14}/> Возврат за авансы</div>
+                  <div className="stat-value" style={{fontSize:20, fontWeight:900, color:'#fff', marginTop: 4}}>{formatMoney(math.top.advances)}</div>
+                  <div style={{fontSize:10, color:'var(--text-muted)', marginTop:6}}>Спонсору / прорабу</div>
                 </div>
 
-                <div style={{background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.3)', borderRadius:'var(--radius)', padding:'14px 18px'}}>
-                  <div style={{display:'flex', alignItems:'center', gap:6, color:'var(--red)', fontSize:11, fontWeight:800, textTransform:'uppercase', marginBottom:4}}><Landmark size={14}/> В кассу фирмы</div>
-                  <div style={{fontSize:24, fontWeight:900, color:'#fff'}}>{formatMoney(math.top.firmPenalties)}</div>
-                  <div style={{fontSize:11, color:'var(--text-muted)', marginTop:2}}>Удержанные штрафы</div>
+                <div className="stat-card" style={{background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.3)', minHeight: 110}}>
+                  <div className="stat-label" style={{display:'flex', alignItems:'center', gap:6, color:'var(--red)', margin: 0}}><Landmark size={14}/> В кассу фирмы</div>
+                  <div className="stat-value" style={{fontSize:20, fontWeight:900, color:'#fff', marginTop: 4}}>{formatMoney(math.top.firmPenalties)}</div>
+                  <div style={{fontSize:10, color:'var(--text-muted)', marginTop:6}}>Удержанные штрафы</div>
                 </div>
               </div>
 
@@ -534,8 +534,8 @@ export default function SalaryPage() {
           ) : (
             /* ── TIMESHEET GRID VIEW ── */
             <div style={{background:'var(--bg-surface)', border:'1px solid var(--border)', borderRadius:'var(--radius)', padding:0, overflow:'hidden', display:'flex', flexDirection:'column'}}>
-              <div style={{padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-                <h2 style={{fontSize:18, fontWeight:800, color:'#fff'}}>Сводный табель часов ({activeB.name})</h2>
+              <div className="tabel-header" style={{padding:'16px 20px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+                <h2 style={{fontSize:18, fontWeight:800, color:'#fff', margin:0}}>Сводный табель часов ({activeB.name})</h2>
                 <div style={{fontSize:12, color:'var(--text-muted)'}}>Листайте вправо для просмотра всех дат →</div>
               </div>
               

@@ -214,17 +214,17 @@ export default function PPEPage() {
       </div>
 
       {/* Stats */}
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:16}}>
+      <div className="stat-cards" style={{marginBottom:16}}>
         {[
           {label:'Активных выдач', value:stats.total, color:'#22c55e', bg:'rgba(34,197,94,0.1)', icon:'🦺'},
           {label:'Сотрудников',    value:stats.workers, color:'#3b82f6', bg:'rgba(59,130,246,0.1)', icon:'👷'},
           {label:'Истёк срок',    value:stats.expired, color:'#ef4444', bg:'rgba(239,68,68,0.1)', icon:'⚠️'},
           {label:'Истекает <30дн',value:stats.soon,   color:'#eab308', bg:'rgba(234,179,8,0.1)', icon:'⏰'},
         ].map(s=>(
-          <div key={s.label} style={{background:'var(--bg-surface)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'var(--radius)',padding:'16px 20px'}}>
-            <div style={{fontSize:22,marginBottom:6}}>{s.icon}</div>
-            <div style={{fontSize:26,fontWeight:900,color:s.color,lineHeight:1}}>{s.value}</div>
-            <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:4,textTransform:'uppercase',letterSpacing:'0.5px'}}>{s.label}</div>
+          <div key={s.label} className="stat-card" style={{border:'1px solid rgba(255,255,255,0.08)'}}>
+            <div style={{fontSize:22, marginBottom:6}}>{s.icon}</div>
+            <div className="stat-value" style={{color:s.color, fontSize:24, lineHeight:1}}>{s.value}</div>
+            <div className="stat-label" style={{marginTop:4}}>{s.label}</div>
           </div>
         ))}
       </div>

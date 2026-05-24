@@ -174,41 +174,41 @@ export default function EmployeesPage() {
       </div>
 
       {/* Statistics Cards */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16, marginBottom:24}}>
-        <div style={{background:'var(--bg-surface)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(255,255,255,0.05)', borderLeft:'4px solid var(--accent)', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', position:'relative', overflow:'hidden'}}>
+      <div className="stat-cards" style={{marginBottom:24}}>
+        <div className="stat-card" style={{borderLeft:'4px solid var(--accent)', position:'relative', overflow:'hidden', minHeight:110}}>
            <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Users size={80} color="var(--accent)"/></div>
-           <div style={{fontSize:11, color:'var(--text-muted)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8}}>ВСЕГО В БАЗЕ</div>
-           <div style={{fontSize:36, fontWeight:900, color:'#fff', lineHeight:1, display:'flex', alignItems:'center', gap:12}}>
+           <div className="stat-label" style={{margin:0}}>ВСЕГО В БАЗЕ</div>
+           <div className="stat-value" style={{fontSize:32, fontWeight:900, color:'#fff', lineHeight:1, marginTop:4}}>
              {stats.total}
            </div>
-           <div style={{fontSize:11, color:'rgba(255,255,255,0.3)', marginTop:8}}>Зарегистрировано пользователей</div>
+           <div style={{fontSize:10, color:'rgba(255,255,255,0.3)', marginTop:8}}>Зарегистрировано</div>
         </div>
 
-        <div style={{background:'var(--bg-surface)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(34,197,94,0.1)', borderLeft:'4px solid var(--green)', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', position:'relative', overflow:'hidden'}}>
+        <div className="stat-card" style={{borderLeft:'4px solid var(--green)', position:'relative', overflow:'hidden', minHeight:110}}>
            <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Check size={80} color="var(--green)"/></div>
-           <div style={{fontSize:11, color:'var(--green)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8, opacity:0.7}}>АКТИВНЫЕ</div>
-           <div style={{fontSize:36, fontWeight:900, color:'var(--green)', lineHeight:1, display:'flex', alignItems:'center', gap:12}}>
+           <div className="stat-label" style={{margin:0, color:'var(--green)'}}>АКТИВНЫЕ</div>
+           <div className="stat-value" style={{fontSize:32, fontWeight:900, color:'var(--green)', lineHeight:1, marginTop:4}}>
              {stats.active}
            </div>
-           <div style={{fontSize:11, color:'rgba(34,197,94,0.3)', marginTop:8}}>Имеют доступ к системе</div>
+           <div style={{fontSize:10, color:'rgba(34,197,94,0.3)', marginTop:8}}>Имеют доступ</div>
         </div>
 
-        <div style={{background:'var(--bg-surface)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(239,68,68,0.1)', borderLeft:'4px solid var(--red)', boxShadow:'0 10px 30px rgba(0,0,0,0.3)', position:'relative', overflow:'hidden'}}>
+        <div className="stat-card" style={{borderLeft:'4px solid var(--red)', position:'relative', overflow:'hidden', minHeight:110}}>
            <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Lock size={80} color="var(--red)"/></div>
-           <div style={{fontSize:11, color:'var(--red)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8, opacity:0.7}}>ЗАБЛОКИРОВАНО</div>
-           <div style={{fontSize:36, fontWeight:900, color:'var(--red)', lineHeight:1, display:'flex', alignItems:'center', gap:12}}>
+           <div className="stat-label" style={{margin:0, color:'var(--red)'}}>ЗАБЛОКИРОВАНО</div>
+           <div className="stat-value" style={{fontSize:32, fontWeight:900, color:'var(--red)', lineHeight:1, marginTop:4}}>
              {stats.blocked}
            </div>
-           <div style={{fontSize:11, color:'rgba(239,68,68,0.3)', marginTop:8}}>Доступ временно ограничен</div>
+           <div style={{fontSize:10, color:'rgba(239,68,68,0.3)', marginTop:8}}>Ограничен доступ</div>
         </div>
 
-        <div style={{background:'var(--bg-elevated)', padding:'18px 24px', borderRadius:20, border:'1px solid rgba(255,255,255,0.05)', borderLeft:'4px solid var(--yellow)', cursor:'pointer', transition:'all 0.2s', position:'relative', overflow:'hidden'}} onClick={handleExport} className="hover-scale">
+        <div className="stat-card hover-scale" style={{borderLeft:'4px solid var(--yellow)', cursor:'pointer', position:'relative', overflow:'hidden', minHeight:110}} onClick={handleExport}>
            <div style={{position:'absolute', right:-10, top:-10, opacity:0.05}}><Download size={80} color="var(--yellow)"/></div>
-           <div style={{fontSize:11, color:'var(--yellow)', fontWeight:800, textTransform:'uppercase', letterSpacing:'1px', marginBottom:8, opacity:0.7}}>ОТЧЕТНОСТЬ</div>
-           <div style={{fontSize:22, fontWeight:900, color:'var(--yellow)', display:'flex', alignItems:'center', gap:10}}>
-             <Download size={20}/> EXCEL
+           <div className="stat-label" style={{margin:0, color:'var(--yellow)'}}>ОТЧЕТНОСТЬ</div>
+           <div className="stat-value" style={{fontSize:20, fontWeight:900, color:'var(--yellow)', display:'flex', alignItems:'center', gap:8, marginTop:6}}>
+             <Download size={18}/> EXCEL
            </div>
-           <div style={{fontSize:11, color:'rgba(234,179,8,0.3)', marginTop:12}}>Выгрузить список в таблицу</div>
+           <div style={{fontSize:10, color:'rgba(234,179,8,0.3)', marginTop:8}}>Выгрузить список</div>
         </div>
       </div>
 
