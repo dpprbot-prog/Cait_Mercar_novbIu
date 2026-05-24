@@ -32,6 +32,22 @@ function calcHours(start: string, end: string, lunch: number): number {
   return Math.max(0, Math.round((totalMin / 60) * 100) / 100)
 }
 
+function decimalToHm(decimalHours: number): string {
+  if (!decimalHours || decimalHours <= 0) return '0'
+  const hours = Math.floor(decimalHours)
+  const minutes = Math.round((decimalHours - hours) * 60)
+  if (minutes === 0) return `${hours}`
+  return `${hours}:${minutes < 10 ? '0' : ''}${minutes}`
+}
+
+function decimalToHmLabel(decimalHours: number): string {
+  if (!decimalHours || decimalHours <= 0) return '0 ч'
+  const hours = Math.floor(decimalHours)
+  const minutes = Math.round((decimalHours - hours) * 60)
+  if (minutes === 0) return `${hours} ч`
+  return `${hours} ч ${minutes} мин`
+}
+
 // ─────────────────────────────────────────────
 //  Component
 // ─────────────────────────────────────────────
@@ -387,8 +403,8 @@ export default function SalaryPage() {
                           
                           {/* ЧАСЫ (Реальные из БД) */}
                           <td style={{padding:'12px 14px', textAlign:'center'}}>
-                            <div style={{width:60, textAlign:'center', display:'inline-block', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, padding:'6px', color: w.hours > 0 ? '#fff' : 'var(--text-muted)', outline:'none'}}>
-                              {w.hours} ч
+                            <div style={{width:80, textAlign:'center', display:'inline-block', background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:6, padding:'6px', color: w.hours > 0 ? '#fff' : 'var(--text-muted)', outline:'none'}} title={decimalToHmLabel(w.hours)}>
+                              {decimalToHm(w.hours)}
                             </div>
                           </td>
 
@@ -527,7 +543,7 @@ export default function SalaryPage() {
                                 }}>
                                 {dayData ? (
                                   <div style={{fontWeight:800, color: dayData.hours >= 10 ? 'var(--orange)' : 'var(--blue)', fontSize:13}}>
-                                    {dayData.hours}
+                                    {decimalToHm(dayData.hours)}
                                   </div>
                                 ) : (
                                   <span style={{color:'rgba(255,255,255,0.1)'}}>·</span>
@@ -536,7 +552,7 @@ export default function SalaryPage() {
                             )
                           })}
                           <td style={{padding:'12px 14px', textAlign:'center', background:'rgba(59,130,246,0.1)', fontWeight:900, color:'#fff', fontSize:14}}>
-                            {total}
+                            {decimalToHm(total)}
                           </td>
                         </tr>
                       )
@@ -677,7 +693,9 @@ export default function SalaryPage() {
                   />
                 </div>
                 <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Итого часов</label>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>
+                    Итого часов {editTimeModal.entry.hours_total ? `(${decimalToHmLabel(editTimeModal.entry.hours_total)})` : ''}
+                  </label>
                   <input type="number" step="0.5"
                     value={editTimeModal.entry.hours_total === undefined ? '' : editTimeModal.entry.hours_total} 
                     onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, hours_total: parseFloat(e.target.value)||0}})}

@@ -20,6 +20,22 @@ function calcHours(start: string, end: string, lunch: number): number {
   return Math.max(0, Math.round((totalMin / 60) * 100) / 100)
 }
 
+function decimalToHm(decimalHours: number): string {
+  if (!decimalHours || decimalHours <= 0) return '0'
+  const hours = Math.floor(decimalHours)
+  const minutes = Math.round((decimalHours - hours) * 60)
+  if (minutes === 0) return `${hours}`
+  return `${hours}:${minutes < 10 ? '0' : ''}${minutes}`
+}
+
+function decimalToHmLabel(decimalHours: number): string {
+  if (!decimalHours || decimalHours <= 0) return '0 ч'
+  const hours = Math.floor(decimalHours)
+  const minutes = Math.round((decimalHours - hours) * 60)
+  if (minutes === 0) return `${hours} ч`
+  return `${hours} ч ${minutes} мин`
+}
+
 // ── Component ─────────────────────────────────────────────
 export default function TabelPage() {
   const { user } = useAuth()
@@ -228,7 +244,7 @@ export default function TabelPage() {
             {/* Calculated hours */}
             <div className="calculated-hours">
               <span className="calculated-hours-label">Итого часов</span>
-              <span className="calculated-hours-value">{hours > 0 ? `${hours} ч` : '—'}</span>
+              <span className="calculated-hours-value">{hours > 0 ? decimalToHmLabel(hours) : '—'}</span>
             </div>
 
             {/* Pending Confirmation Warning */}
@@ -267,7 +283,7 @@ export default function TabelPage() {
                 disabled={!object || !startTime || !endTime || hours === 0}
               >
                 <Send size={15} />
-                Отправить отчёт {hours > 0 ? `(${hours} ч)` : ''}
+                Отправить отчёт {hours > 0 ? `(${decimalToHm(hours)})` : ''}
               </button>
             ) : (
               <button
@@ -283,7 +299,7 @@ export default function TabelPage() {
             {/* Last report */}
             {submitted && (
               <div className="last-report">
-                <strong>Последний отчёт: {object} — {hours} ч</strong>
+                <strong>Последний отчёт: {object} — {decimalToHmLabel(hours)}</strong>
                 <br />
                 <button onClick={handleOpenHistory} className="history-link" style={{background:'none', border:'none', cursor:'pointer', fontFamily:'inherit'}}>≡ Ваша история и календарь</button>
               </div>
@@ -347,7 +363,7 @@ export default function TabelPage() {
                 <div className="member-hours">
                   {member.hoursTotal > 0 ? (
                     <>
-                      <div className="member-hours-value" style={{ color: member.isApproved === 0 ? 'var(--yellow)' : 'var(--green)' }}>{member.hoursTotal}</div>
+                      <div className="member-hours-value" style={{ color: member.isApproved === 0 ? 'var(--yellow)' : 'var(--green)' }}>{decimalToHm(member.hoursTotal)}</div>
                       <div className="member-hours-label" style={{ color: member.isApproved === 0 ? 'var(--yellow)' : 'var(--text-muted)' }}>
                         {member.isApproved === 0 ? 'ожидает' : 'ч'}
                       </div>
@@ -374,7 +390,7 @@ export default function TabelPage() {
                 <div key={i} style={{display:'flex', justifyContent:'space-between', padding:'12px', borderBottom:'1px solid var(--border)', background: i%2===0 ? 'transparent' : 'rgba(255,255,255,0.02)'}}>
                   <div style={{color:'var(--text-muted)', fontSize:13}}>{h.date}</div>
                   <div style={{color:'#fff', fontWeight:600, fontSize:13}}>{h.object}</div>
-                  <div style={{color:'var(--accent)', fontWeight:800}}>{h.hours} ч</div>
+                  <div style={{color:'var(--accent)', fontWeight:800}}>{decimalToHmLabel(h.hours)}</div>
                 </div>
               )) : (
                 <div style={{padding: 20, textAlign: 'center', color: 'var(--text-muted)'}}>Нет записанных смен</div>
@@ -473,7 +489,7 @@ export default function TabelPage() {
       {toast && (
         <div className="toast">
           <Check size={16} />
-          Отчёт отправлен — {hours} ч · {object}
+          Отчёт отправлен — {decimalToHmLabel(hours)} · {object}
         </div>
       )}
     </AppLayout>
