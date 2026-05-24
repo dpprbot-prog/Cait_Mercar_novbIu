@@ -3,7 +3,7 @@
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { logAction } from './history'
-import { getMe } from './auth'
+import { getCurrentUser } from './auth'
 
 export type ToolStatus = 'available' | 'issued' | 'repair' | 'lost' | 'written_off' | 'pending_transfer' | 'pending_writeoff'
 export type ToolCategory = 'power' | 'hand' | 'measuring' | 'lifting' | 'welding' | 'concrete' | 'other'
@@ -56,7 +56,7 @@ export async function getTools(): Promise<ToolItem[]> {
 
 export async function addTool(data: Partial<ToolItem>, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -90,7 +90,7 @@ export async function addTool(data: Partial<ToolItem>, performedBy: string = 'С
 
 export async function initiateToolTransfer(id: string, transferData: {from: string, to: string, toType: AssigneeType, date: string, object?: string}) {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -126,7 +126,7 @@ export async function initiateToolTransfer(id: string, transferData: {from: stri
 
 export async function respondToolTransfer(id: string, accept: boolean, transferTo: string, transferToType: string, transferObject: string, issuedToFallback: string | null, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -187,7 +187,7 @@ export async function respondToolTransfer(id: string, accept: boolean, transferT
 
 export async function sendToolToRepair(id: string, location: string, date: string, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -214,7 +214,7 @@ export async function sendToolToRepair(id: string, location: string, date: strin
 
 export async function returnToolFromRepair(id: string, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -241,7 +241,7 @@ export async function returnToolFromRepair(id: string, performedBy: string = 'С
 
 export async function requestToolWriteOff(id: string, reason: string, photo: string | null, requestedBy: string, date: string) {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -269,7 +269,7 @@ export async function requestToolWriteOff(id: string, reason: string, photo: str
 
 export async function resolveToolWriteOff(id: string, approve: boolean, issuedToFallback: string | null, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -313,7 +313,7 @@ export async function resolveToolWriteOff(id: string, approve: boolean, issuedTo
 
 export async function deleteTool(id: string, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -340,7 +340,7 @@ export async function deleteTool(id: string, performedBy: string = 'Систем
 
 export async function updateTool(id: string, data: Partial<ToolItem>, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }

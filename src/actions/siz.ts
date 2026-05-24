@@ -3,7 +3,7 @@
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { logAction } from './history'
-import { getMe } from './auth'
+import { getCurrentUser } from './auth'
 
 export type PPEStatus = 'active' | 'returned' | 'expired' | 'lost'
 export type PPECategory = 'head' | 'hands' | 'feet' | 'body' | 'eyes' | 'hearing' | 'respiratory' | 'fall'
@@ -36,7 +36,7 @@ export async function getSizItems(): Promise<PPEItem[]> {
 
 export async function issueSizItem(data: Omit<PPEItem, 'id' | 'status' | 'returnedDate'>, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -81,7 +81,7 @@ export async function issueSizItem(data: Omit<PPEItem, 'id' | 'status' | 'return
 
 export async function updateSizStatus(id: string, status: PPEStatus, returnedDate?: string, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -111,7 +111,7 @@ export async function updateSizStatus(id: string, status: PPEStatus, returnedDat
 
 export async function deleteSizItem(id: string, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
@@ -138,7 +138,7 @@ export async function deleteSizItem(id: string, performedBy: string = 'Сист�
 
 export async function updateSizItem(id: string, data: Partial<PPEItem>, performedBy: string = 'Система') {
   try {
-    const userProfile = await getMe()
+    const userProfile = await getCurrentUser()
     if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
       return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
     }
