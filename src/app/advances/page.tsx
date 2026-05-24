@@ -106,7 +106,7 @@ export default function AdvancesPage() {
 
   return (
     <AppLayout>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:24}}>
+      <div className="page-header" style={{marginBottom:24}}>
         <div>
           <h1 style={{color:'#fff', margin:0}}>Учёт авансов</h1>
           <p style={{color:'rgba(255,255,255,0.5)', margin:'4px 0 0 0'}}>История выдачи денежных средств сотрудникам</p>
@@ -128,25 +128,25 @@ export default function AdvancesPage() {
       </div>
 
       {/* Summary Cards */}
-      <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(200px, 1fr))', gap:16, marginBottom:24}}>
+      <div className="stat-cards" style={{marginBottom:24}}>
         {Object.entries(SOURCE_LABELS).map(([key, info]) => (
-          <div key={key} style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:16, padding:20, display:'flex', alignItems:'center', gap:16}}>
-            <div style={{width:48, height:48, borderRadius:12, background:info.color+'15', display:'flex', alignItems:'center', justifyContent:'center', color:info.color}}>
-              <info.icon size={24}/>
+          <div key={key} className="stat-card" style={{display:'flex', alignItems:'center', gap:12}}>
+            <div className="stat-icon" style={{width:40, height:40, borderRadius:8, background:info.color+'15', display:'flex', alignItems:'center', justifyContent:'center', color:info.color, margin:0}}>
+              <info.icon size={20}/>
             </div>
             <div>
-              <div style={{fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>{info.label}</div>
-              <div style={{fontSize:20, fontWeight:800, color:'#fff'}}>{(totals[key] || 0).toLocaleString()} ₽</div>
+              <div className="stat-label" style={{margin:0, fontSize:10}}>{info.label}</div>
+              <div className="stat-value" style={{fontSize:16, fontWeight:800}}>{(totals[key] || 0).toLocaleString()} ₽</div>
             </div>
           </div>
         ))}
-        <div style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--accent)', borderRadius:16, padding:20, display:'flex', alignItems:'center', gap:16, boxShadow:'inset 0 0 20px rgba(201,55,44,0.05)'}}>
-          <div style={{width:48, height:48, borderRadius:12, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff'}}>
-            <DollarSign size={24}/>
+        <div className="stat-card" style={{display:'flex', alignItems:'center', gap:12, border:'1px solid var(--accent)', boxShadow:'inset 0 0 20px rgba(201, 55, 44, 0.05)'}}>
+          <div className="stat-icon" style={{width:40, height:40, borderRadius:8, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', margin:0}}>
+            <DollarSign size={20}/>
           </div>
           <div>
-            <div style={{fontSize:11, color:'rgba(255,255,255,0.4)', fontWeight:700, textTransform:'uppercase', marginBottom:4}}>Всего выплачено</div>
-            <div style={{fontSize:20, fontWeight:800, color:'var(--accent)'}}>{totals.total.toLocaleString()} ₽</div>
+            <div className="stat-label" style={{margin:0, fontSize:10}}>Всего выплачено</div>
+            <div className="stat-value" style={{fontSize:16, fontWeight:800, color:'var(--accent)'}}>{totals.total.toLocaleString()} ₽</div>
           </div>
         </div>
       </div>
@@ -163,7 +163,7 @@ export default function AdvancesPage() {
           />
         </div>
         
-        <div style={{display:'flex', gap:10, flex:1, minWidth:300}}>
+        <div style={{display:'flex', gap:10, flex:1, minWidth:280}}>
           <div style={{position:'relative', flex:1}}>
             <Calendar size={14} style={{position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.3)'}}/>
             <input 
@@ -195,7 +195,7 @@ export default function AdvancesPage() {
       </div>
 
       {/* Table */}
-      <div style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden'}}>
+      <div className="table-wrap" style={{background:'rgba(255,255,255,0.03)', border:'1px solid var(--border)', borderRadius:16, overflow:'hidden'}}>
         <table style={{width:'100%', borderCollapse:'collapse', textAlign:'left'}}>
           <thead>
             <tr style={{background:'rgba(255,255,255,0.05)', borderBottom:'1px solid var(--border)'}}>
