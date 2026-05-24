@@ -121,7 +121,24 @@ export async function getDashboardStats(workerId: string) {
   }
 
   // 5. СИЗ: сколько скоро истекает или уже истёк
-  const sizWarnings = db.prepare("SELECT COUNT(*) as count FROM siz_items WHERE status = 'expired' OR status = 'active'").get() as { count: number }
+  const sizItems = db.prepare("SELECT status, expiryDate FROM siz_items WHERE status = 'expired' OR status = 'active'").all() as { status: string, expiryDate: string }[]
+  
+  let sizAlertsCount = 0
+  const nowMs = Date.now()
+  for (const item of sizItems) {
+    if (item.status === 'expired') {
+      sizAlertsCount++
+    } else if (item.status === 'active' && item.expiryDate) {
+      const parts = item.expiryDate.split('.')
+      if (parts.length === 3) {
+        const expiryTime = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime()
+        const daysLeft = Math.ceil((expiryTime - nowMs) / 86400000)
+        if (daysLeft <= 30) {
+          sizAlertsCount++
+        }
+      }
+    }
+  }
 
   return {
     todayHours: myHours.total || 0,
@@ -131,7 +148,7 @@ export async function getDashboardStats(workerId: string) {
     checkedInCount: checkedIn,
     brigadeName,
     brigadeMembers, // Новый список с деталями
-    sizAlerts: sizWarnings.count
+    sizAlerts: sizAlertsCount
   }
 }
 
