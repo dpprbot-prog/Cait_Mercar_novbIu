@@ -6,10 +6,12 @@ import db from '@/lib/db'
 export async function getWorkers() {
   return db.prepare(`
     SELECT 
-      id, login, name, role, last_name, first_name, patronymic, 
-      height, clothing_size, shoe_size, user_color, initials, is_blocked, is_approved, brigade_id
-    FROM workers 
-    ORDER BY name
+      w.id, w.login, w.name, w.role, w.last_name, w.first_name, w.patronymic, 
+      w.height, w.clothing_size, w.shoe_size, w.user_color, w.initials, w.is_blocked, w.is_approved, w.brigade_id,
+      b.name as brigade_name
+    FROM workers w
+    LEFT JOIN brigades b ON w.brigade_id = b.id
+    ORDER BY w.name
   `).all() as any[]
 }
 

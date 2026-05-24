@@ -254,6 +254,10 @@ export default function EmployeesPage() {
           <option value="">Все роли</option>
           {roles.map(r=><option key={r} value={r}>{r}</option>)}
         </select>
+        <select value={brigadeFilter} onChange={e=>setBrigadeFilter(e.target.value)} style={{flex:1, minWidth:120, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'8px', color:'#fff', outline:'none', fontSize:13}}>
+          <option value="">Все бригады</option>
+          {brigades.map(b=><option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
         <select value={statusFilter} onChange={e=>setStatusFilter(e.target.value)} style={{flex:1, minWidth:120, background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, padding:'8px', color:'#fff', outline:'none', fontSize:13}}>
           <option value="all">Любой статус</option>
           <option value="active">Активные</option>
@@ -268,6 +272,7 @@ export default function EmployeesPage() {
               <tr style={{background:'rgba(255,255,255,0.03)', borderBottom:'1px solid var(--border)'}}>
                 <th style={{padding:12, textAlign:'left'}}>Сотрудник</th>
                 <th style={{padding:12, textAlign:'left'}}>Роль</th>
+                <th style={{padding:12, textAlign:'left'}}>Бригада</th>
                 <th style={{padding:12, textAlign:'center'}}>Статус</th>
                 <th style={{padding:12, textAlign:'right'}}>Действия</th>
               </tr>
@@ -276,10 +281,18 @@ export default function EmployeesPage() {
               {filtered.map(w => (
                 <tr key={w.id} style={{borderBottom:'1px solid var(--border)'}}>
                   <td style={{padding:12}}>
-                    <div style={{fontWeight:700}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
-                    <div style={{fontSize:11, color:'rgba(255,255,255,0.4)'}}>{w.login}</div>
+                    <div style={{display:'flex', alignItems:'center', gap:10}}>
+                      <div style={{width:32, height:32, borderRadius:8, background: w.user_color || 'var(--bg-elevated)', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:800, flexShrink:0}}>
+                        {w.initials}
+                      </div>
+                      <div>
+                        <div style={{fontWeight:700}}>{`${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name}</div>
+                        <div style={{fontSize:11, color:'rgba(255,255,255,0.4)'}}>{w.login}</div>
+                      </div>
+                    </div>
                   </td>
                   <td style={{padding:12}}>{w.role}</td>
+                  <td style={{padding:12, color: w.brigade_name ? '#fff' : 'var(--text-muted)'}}>{w.brigade_name || '—'}</td>
                   <td style={{padding:12, textAlign:'center'}}>
                     <span className={`badge-pill ${w.is_blocked ? 'badge-red' : 'badge-green'}`} style={{fontSize:10}}>
                       {w.is_blocked ? 'БЛОК' : 'АКТИВЕН'}
