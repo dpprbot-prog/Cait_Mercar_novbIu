@@ -426,7 +426,7 @@ export default function ToolsPage() {
       {/* ── Tool Categories ── */}
       {Object.entries(byCategory).map(([cat, catTools])=>{
         const cv = CATEGORIES[cat as ToolCategory]
-        const exp = expandCat.has(cat)
+        const exp = search.trim() !== '' || catFilter === cat || expandCat.has(cat)
         return (
           <div key={cat} style={{marginBottom:10,background:'var(--bg-surface)',border:'1px solid var(--border)',borderRadius:'var(--radius)',overflow:'hidden'}}>
             <div onClick={()=>setExpandCat(s=>{const n=new Set(s);n.has(cat)?n.delete(cat):n.add(cat);return n})} style={{padding:'12px 16px',display:'flex',alignItems:'center',gap:12,cursor:'pointer',background:exp?'rgba(255,255,255,0.02)':'transparent'}}>
