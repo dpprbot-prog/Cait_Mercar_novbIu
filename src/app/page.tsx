@@ -30,7 +30,10 @@ export default function DashboardPage() {
       getSupplyOrders().then(orders => setRecentOrders(orders.slice(0, 3)))
       getAuditLogs({ limit: 10 }).then(setGlobalLogs)
       
-      if (user.role === 'Админ') {
+      const savedFilter = localStorage.getItem('merkare_brigade_filter')
+      if (savedFilter === 'all' || savedFilter === 'checkedIn') {
+        setBrigadeFilter(savedFilter)
+      } else if (user.role === 'Админ') {
         setBrigadeFilter('checkedIn')
       }
     }
@@ -142,7 +145,10 @@ export default function DashboardPage() {
                 border: '1px solid var(--border-light)'
               }}>
                 <button
-                  onClick={() => setBrigadeFilter('all')}
+                  onClick={() => {
+                    setBrigadeFilter('all')
+                    localStorage.setItem('merkare_brigade_filter', 'all')
+                  }}
                   style={{
                     padding: '3px 8px',
                     borderRadius: 4,
@@ -157,7 +163,10 @@ export default function DashboardPage() {
                   Все ({stats.brigadeSize})
                 </button>
                 <button
-                  onClick={() => setBrigadeFilter('checkedIn')}
+                  onClick={() => {
+                    setBrigadeFilter('checkedIn')
+                    localStorage.setItem('merkare_brigade_filter', 'checkedIn')
+                  }}
                   style={{
                     padding: '3px 8px',
                     borderRadius: 4,

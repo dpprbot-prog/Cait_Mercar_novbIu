@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AuditLog } from '@/actions/history'
 import { History, Clock, User, Tag, Activity } from 'lucide-react'
 
@@ -39,6 +39,18 @@ const ENTITY_LABELS: Record<string, string> = {
 export function HistoryFeed({ logs }: Props) {
   const [collapseMode, setCollapseMode] = useState<'collapsed' | 'partial' | 'full'>('full')
 
+  useEffect(() => {
+    const saved = localStorage.getItem('merkare_history_feed_mode')
+    if (saved === 'collapsed' || saved === 'partial' || saved === 'full') {
+      setCollapseMode(saved)
+    }
+  }, [])
+
+  const handleModeChange = (mode: 'collapsed' | 'partial' | 'full') => {
+    setCollapseMode(mode)
+    localStorage.setItem('merkare_history_feed_mode', mode)
+  }
+
   const visibleLogs = collapseMode === 'collapsed'
     ? []
     : (collapseMode === 'partial' ? logs.slice(0, 3) : logs)
@@ -76,7 +88,7 @@ export function HistoryFeed({ logs }: Props) {
             return (
               <button
                 key={mode}
-                onClick={() => setCollapseMode(mode)}
+                onClick={() => handleModeChange(mode)}
                 style={{
                   padding: '5px 12px',
                   borderRadius: 6,
