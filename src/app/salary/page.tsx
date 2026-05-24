@@ -41,7 +41,7 @@ export default function SalaryPage() {
   
   const [monthIdx, setMonthIdx] = useState(new Date().getMonth())
   const [year, setYear] = useState(new Date().getFullYear())
-  const [viewMode, setViewMode] = useState<'list' | 'timesheet'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'timesheet'>('timesheet')
   const [timesheetData, setTimesheetData] = useState<any>(null)
   
   // Modals / Inputs
