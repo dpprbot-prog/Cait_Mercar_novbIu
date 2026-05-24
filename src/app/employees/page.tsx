@@ -265,7 +265,7 @@ export default function EmployeesPage() {
         </select>
       </div>
 
-      <div style={{background:'var(--bg-surface)', borderRadius:12, border:'1px solid var(--border)', overflow:'hidden'}}>
+      <div style={{background:'var(--bg-surface)', borderRadius:12, border:'1px solid var(--border)', overflowX:'auto'}}>
         {loading ? <div style={{padding:40, textAlign:'center'}}>Загрузка...</div> : (
           <table style={{width:'100%', borderCollapse:'collapse', fontSize:13}}>
             <thead>
