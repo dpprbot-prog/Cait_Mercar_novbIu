@@ -3,6 +3,7 @@
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { logAction } from './history'
+import { getMe } from './auth'
 
 export type ToolStatus = 'available' | 'issued' | 'repair' | 'lost' | 'written_off' | 'pending_transfer' | 'pending_writeoff'
 export type ToolCategory = 'power' | 'hand' | 'measuring' | 'lifting' | 'welding' | 'concrete' | 'other'
@@ -55,6 +56,12 @@ export async function getTools(): Promise<ToolItem[]> {
 
 export async function addTool(data: Partial<ToolItem>, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const id = 't' + Date.now().toString()
     const stmt = db.prepare(`
       INSERT INTO tools (
@@ -66,7 +73,7 @@ export async function addTool(data: Partial<ToolItem>, performedBy: string = 'С
     )
     
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'create',
       entity_type: 'tool',
       entity_id: id,
@@ -83,6 +90,10 @@ export async function addTool(data: Partial<ToolItem>, performedBy: string = 'С
 
 export async function initiateToolTransfer(id: string, transferData: {from: string, to: string, toType: AssigneeType, date: string, object?: string}) {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
     const stmt = db.prepare(`
       UPDATE tools SET 
         status = 'pending_transfer',
@@ -115,6 +126,12 @@ export async function initiateToolTransfer(id: string, transferData: {from: stri
 
 export async function respondToolTransfer(id: string, accept: boolean, transferTo: string, transferToType: string, transferObject: string, issuedToFallback: string | null, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     if (accept) {
       if (transferTo === 'Склад') {
@@ -136,7 +153,7 @@ export async function respondToolTransfer(id: string, accept: boolean, transferT
         stmt.run(transferToType, transferTo, transferObject, d, id)
       }
       await logAction({
-        user_name: performedBy,
+        user_name: finalPerformedBy,
         action_type: 'transfer',
         entity_type: 'tool',
         entity_id: id,
@@ -153,7 +170,7 @@ export async function respondToolTransfer(id: string, accept: boolean, transferT
       `)
       stmt.run(status, id)
       await logAction({
-        user_name: performedBy,
+        user_name: finalPerformedBy,
         action_type: 'transfer',
         entity_type: 'tool',
         entity_id: id,
@@ -170,6 +187,12 @@ export async function respondToolTransfer(id: string, accept: boolean, transferT
 
 export async function sendToolToRepair(id: string, location: string, date: string, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const stmt = db.prepare(`
       UPDATE tools SET status = 'repair', repair_location = ?, repair_sentDate = ? WHERE id = ?
     `)
@@ -177,7 +200,7 @@ export async function sendToolToRepair(id: string, location: string, date: strin
     
     const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'repair',
       entity_type: 'tool',
       entity_id: id,
@@ -191,6 +214,12 @@ export async function sendToolToRepair(id: string, location: string, date: strin
 
 export async function returnToolFromRepair(id: string, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const stmt = db.prepare(`
       UPDATE tools SET status = 'available', condition = 'good', repair_location = null, repair_sentDate = null WHERE id = ?
     `)
@@ -198,7 +227,7 @@ export async function returnToolFromRepair(id: string, performedBy: string = 'С
     
     const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'repair',
       entity_type: 'tool',
       entity_id: id,
@@ -212,15 +241,21 @@ export async function returnToolFromRepair(id: string, performedBy: string = 'С
 
 export async function requestToolWriteOff(id: string, reason: string, photo: string | null, requestedBy: string, date: string) {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const stmt = db.prepare(`
       UPDATE tools SET status = 'pending_writeoff', writeoff_reason = ?, writeoff_photo = ?, writeoff_requestedBy = ?, writeoff_date = ?
       WHERE id = ?
     `)
-    stmt.run(reason, photo, requestedBy, date, id)
+    stmt.run(reason, photo, finalPerformedBy, date, id)
     
     const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     await logAction({
-      user_name: requestedBy,
+      user_name: finalPerformedBy,
       action_type: 'writeoff',
       entity_type: 'tool',
       entity_id: id,
@@ -234,6 +269,12 @@ export async function requestToolWriteOff(id: string, reason: string, photo: str
 
 export async function resolveToolWriteOff(id: string, approve: boolean, issuedToFallback: string | null, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const tool = db.prepare('SELECT name FROM tools WHERE id = ?').get(id) as any
     if (approve) {
       const stmt = db.prepare(`
@@ -243,7 +284,7 @@ export async function resolveToolWriteOff(id: string, approve: boolean, issuedTo
       `)
       stmt.run(id)
       await logAction({
-        user_name: performedBy,
+        user_name: finalPerformedBy,
         action_type: 'writeoff',
         entity_type: 'tool',
         entity_id: id,
@@ -258,7 +299,7 @@ export async function resolveToolWriteOff(id: string, approve: boolean, issuedTo
       `)
       stmt.run(status, id)
       await logAction({
-        user_name: performedBy,
+        user_name: finalPerformedBy,
         action_type: 'writeoff',
         entity_type: 'tool',
         entity_id: id,
@@ -272,11 +313,17 @@ export async function resolveToolWriteOff(id: string, approve: boolean, issuedTo
 
 export async function deleteTool(id: string, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const tool = db.prepare('SELECT name, inventoryNum FROM tools WHERE id = ?').get(id) as any
     db.prepare('DELETE FROM tools WHERE id = ?').run(id)
     
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'delete',
       entity_type: 'tool',
       entity_id: id,
@@ -293,6 +340,12 @@ export async function deleteTool(id: string, performedBy: string = 'Систем
 
 export async function updateTool(id: string, data: Partial<ToolItem>, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const old = db.prepare('SELECT * FROM tools WHERE id = ?').get(id) as any
     const stmt = db.prepare(`
       UPDATE tools SET 
@@ -306,9 +359,9 @@ export async function updateTool(id: string, data: Partial<ToolItem>, performedB
     if (old.inventoryNum !== data.inventoryNum) changes.push(`инв. №: ${old.inventoryNum} -> ${data.inventoryNum}`)
     if (old.condition !== data.condition) changes.push(`состояние: ${old.condition} -> ${data.condition}`)
     if (old.qty !== data.qty) changes.push(`кол-во: ${old.qty} -> ${data.qty}`)
-
+ 
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'update',
       entity_type: 'tool',
       entity_id: id,

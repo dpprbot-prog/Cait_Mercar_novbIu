@@ -3,6 +3,7 @@
 import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { logAction } from './history'
+import { getMe } from './auth'
 
 export type PPEStatus = 'active' | 'returned' | 'expired' | 'lost'
 export type PPECategory = 'head' | 'hands' | 'feet' | 'body' | 'eyes' | 'hearing' | 'respiratory' | 'fall'
@@ -35,6 +36,12 @@ export async function getSizItems(): Promise<PPEItem[]> {
 
 export async function issueSizItem(data: Omit<PPEItem, 'id' | 'status' | 'returnedDate'>, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const id = Date.now().toString()
     const stmt = db.prepare(`
       INSERT INTO siz_items 
@@ -57,7 +64,7 @@ export async function issueSizItem(data: Omit<PPEItem, 'id' | 'status' | 'return
     )
 
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'create',
       entity_type: 'siz',
       entity_id: id,
@@ -74,6 +81,12 @@ export async function issueSizItem(data: Omit<PPEItem, 'id' | 'status' | 'return
 
 export async function updateSizStatus(id: string, status: PPEStatus, returnedDate?: string, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const stmt = db.prepare('UPDATE siz_items SET status = ?, returnedDate = ? WHERE id = ?')
     stmt.run(status, returnedDate || null, id)
     
@@ -81,7 +94,7 @@ export async function updateSizStatus(id: string, status: PPEStatus, returnedDat
     const labels: any = {returned:'Возвращено',lost:'Утеряно',active:'Активен',expired:'Просрочено'}
     
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'update',
       entity_type: 'siz',
       entity_id: id,
@@ -98,11 +111,17 @@ export async function updateSizStatus(id: string, status: PPEStatus, returnedDat
 
 export async function deleteSizItem(id: string, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const siz = db.prepare('SELECT name, worker FROM siz_items WHERE id = ?').get(id) as any
     db.prepare('DELETE FROM siz_items WHERE id = ?').run(id)
     
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'delete',
       entity_type: 'siz',
       entity_id: id,
@@ -119,6 +138,12 @@ export async function deleteSizItem(id: string, performedBy: string = 'Сист�
 
 export async function updateSizItem(id: string, data: Partial<PPEItem>, performedBy: string = 'Система') {
   try {
+    const userProfile = await getMe()
+    if (!userProfile || !['Админ', 'Мастер', 'Склад'].includes(userProfile.role || '')) {
+      return { success: false, error: 'Доступ запрещен. Недостаточно прав.' }
+    }
+    const finalPerformedBy = userProfile.role === 'Админ' || userProfile.role === 'Склад' ? userProfile.role : userProfile.name
+
     const old = db.prepare('SELECT status FROM siz_items WHERE id = ?').get(id) as any
     
     // Авто-активация если срок продлили
@@ -142,7 +167,7 @@ export async function updateSizItem(id: string, data: Partial<PPEItem>, performe
     )
     
     await logAction({
-      user_name: performedBy,
+      user_name: finalPerformedBy,
       action_type: 'update',
       entity_type: 'siz',
       entity_id: id,

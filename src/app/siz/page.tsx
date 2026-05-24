@@ -60,7 +60,9 @@ export default function PPEPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'Админ'
   const isSklad = user?.role === 'Склад'
-  const currentUser = isAdmin ? 'Админ' : isSklad ? 'Склад' : user?.name || 'Система'
+  const isMaster = user?.role === 'Мастер'
+  const canManage = isAdmin || isSklad || isMaster
+  const currentUser = isAdmin ? 'Админ' : isSklad ? 'Склад' : isMaster ? 'Мастер' : user?.name || 'Система'
   
   const loadInitial = async () => {
     const [siz, workers, objects, logs] = await Promise.all([
@@ -207,7 +209,7 @@ export default function PPEPage() {
         <div style={{display:'flex',gap:8,alignItems:'center'}}>
           {stats.expired>0&&<span className="badge-pill badge-red">⚠️ {stats.expired} истёк срок</span>}
           {stats.soon>0&&<span className="badge-pill badge-yellow">⏰ {stats.soon} скоро истекает</span>}
-          <button className="btn btn-primary btn-sm" onClick={()=>setShowForm(s=>!s)}><Plus size={14}/> Выдать СИЗ</button>
+          {canManage && <button className="btn btn-primary btn-sm" onClick={()=>setShowForm(s=>!s)}><Plus size={14}/> Выдать СИЗ</button>}
         </div>
       </div>
 
@@ -403,18 +405,20 @@ export default function PPEPage() {
                           {item.note&&<div style={{fontSize:11,color:'rgba(255,255,255,0.35)',marginTop:2}}>💬 {item.note}</div>}
                         </div>
                         <div style={{fontWeight:800,fontSize:18,color:'#fff'}}>{item.qty} <span style={{fontSize:12,fontWeight:500,color:'rgba(255,255,255,0.4)'}}>{item.unit}</span></div>
-                        <div style={{display:'flex',gap:6,flexShrink:0}}>
-                          <button onClick={()=>setEditModal(item)}
-                            title="Редактировать"
-                            style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(59,130,246,0.1)',color:'var(--blue)',border:'1px solid rgba(59,130,246,0.2)',cursor:'pointer'}}>
-                            <Pencil size={12}/>
-                          </button>
-                          <button onClick={()=>handleDeleteSiz(item.id, item.name)}
-                            title="Удалить"
-                            style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(239,68,68,0.1)',color:'var(--red)',border:'1px solid rgba(239,68,68,0.2)',cursor:'pointer'}}>
-                            <Trash size={12}/>
-                          </button>
-                        </div>
+                        {canManage && (
+                          <div style={{display:'flex',gap:6,flexShrink:0}}>
+                            <button onClick={()=>setEditModal(item)}
+                              title="Редактировать"
+                              style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(59,130,246,0.1)',color:'var(--blue)',border:'1px solid rgba(59,130,246,0.2)',cursor:'pointer'}}>
+                              <Pencil size={12}/>
+                            </button>
+                            <button onClick={()=>handleDeleteSiz(item.id, item.name)}
+                              title="Удалить"
+                              style={{width:28,height:28,borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(239,68,68,0.1)',color:'var(--red)',border:'1px solid rgba(239,68,68,0.2)',cursor:'pointer'}}>
+                              <Trash size={12}/>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -457,10 +461,12 @@ export default function PPEPage() {
                     {item.returnedDate||item.expiryDate}
                   </td>
                   <td style={{padding:'11px 14px'}}>
-                    <div style={{display:'flex',gap:6}}>
-                      <button onClick={()=>setEditModal(item)} style={{background:'none',border:'none',color:'var(--blue)',cursor:'pointer'}}><Pencil size={14}/></button>
-                      <button onClick={()=>handleDeleteSiz(item.id, item.name)} style={{background:'none',border:'none',color:'var(--red)',cursor:'pointer'}}><Trash size={14}/></button>
-                    </div>
+                    {canManage && (
+                      <div style={{display:'flex',gap:6}}>
+                        <button onClick={()=>setEditModal(item)} style={{background:'none',border:'none',color:'var(--blue)',cursor:'pointer'}}><Pencil size={14}/></button>
+                        <button onClick={()=>handleDeleteSiz(item.id, item.name)} style={{background:'none',border:'none',color:'var(--red)',cursor:'pointer'}}><Trash size={14}/></button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}

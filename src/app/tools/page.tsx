@@ -86,7 +86,9 @@ export default function ToolsPage() {
   const { user } = useAuth()
   const isAdmin = user?.role === 'Админ'
   const isSklad = user?.role === 'Склад'
-  const currentUser = isAdmin ? 'Админ' : isSklad ? 'Склад' : user?.name || ''
+  const isMaster = user?.role === 'Мастер'
+  const canManage = isAdmin || isSklad || isMaster
+  const currentUser = isAdmin ? 'Админ' : isSklad ? 'Склад' : isMaster ? 'Мастер' : user?.name || ''
   
   // Filters
   const [search, setSearch] = useState('')
@@ -317,8 +319,8 @@ export default function ToolsPage() {
       <div className="page-header" style={{marginBottom:16}}>
         <h1 style={{color:'#fff',display:'flex',alignItems:'center',gap:10}}><Wrench size={22} color="#eab308"/> Инструмент</h1>
         <div style={{display:'flex', gap:10}}>
-          {(isSklad || isAdmin) && <button className="btn btn-primary btn-sm" style={{background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)'}} onClick={handleExport}><Download size={14}/> Экспорт</button>}
-          {(isSklad || isAdmin) && <button className="btn btn-primary btn-sm" onClick={()=>setShowAddForm(s=>!s)}><Plus size={14}/> Добавить на склад</button>}
+          {canManage && <button className="btn btn-primary btn-sm" style={{background:'rgba(255,255,255,0.05)', border:'1px solid rgba(255,255,255,0.1)', color:'rgba(255,255,255,0.6)'}} onClick={handleExport}><Download size={14}/> Экспорт</button>}
+          {canManage && <button className="btn btn-primary btn-sm" onClick={()=>setShowAddForm(s=>!s)}><Plus size={14}/> Добавить на склад</button>}
         </div>
       </div>
 
@@ -365,7 +367,7 @@ export default function ToolsPage() {
       )}
 
       {/* ── Action Required Panel ── */}
-      {(myIncomingTransfers.length > 0 || myPendingWriteoffs.length > 0) && (
+      {canManage && (myIncomingTransfers.length > 0 || myPendingWriteoffs.length > 0) && (
         <div style={{marginBottom:20}}>
           <h3 style={{fontSize:14,fontWeight:700,color:'#fff',marginBottom:8}}>Требует вашего участия</h3>
           <div style={{display:'grid',gap:10}}>
@@ -486,7 +488,7 @@ export default function ToolsPage() {
                 {/* Actions (Role-based) */}
                 <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end',minWidth:130}}>
                   <div style={{display:'flex', gap:8, alignItems:'center'}}>
-                    {isAdmin && (
+                    {canManage && (
                       <div style={{display:'flex', gap:4}}>
                         <button 
                           onClick={(e) => { e.stopPropagation(); setEditModal(tool); }} 
@@ -509,42 +511,44 @@ export default function ToolsPage() {
                     <span className={`badge-pill ${STATUS_BADGE[tool.status]}`} style={{fontSize:10}}>{STATUS_LABEL[tool.status]}</span>
                   </div>
                   
-                  <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:'flex-end'}}>
-                    {/* Кнопка "Передать" (Склад или текущий владелец) */}
-                    {(tool.status==='available' && (isSklad || isAdmin)) || (tool.status==='issued' && tool.issuedTo===currentUser) ? (
-                      <button onClick={()=>setTransferModal(tool.id)} style={{padding:'5px 10px',background:'var(--blue-dim)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:5,color:'var(--blue)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
-                        Передать
-                      </button>
-                    ):null}
+                  {canManage && (
+                    <div style={{display:'flex',gap:4,flexWrap:'wrap',justifyContent:'flex-end'}}>
+                      {/* Кнопка "Передать" (Склад или текущий владелец) */}
+                      {(tool.status==='available' && (isSklad || isAdmin || isMaster)) || (tool.status==='issued' && tool.issuedTo===currentUser) ? (
+                        <button onClick={()=>setTransferModal(tool.id)} style={{padding:'5px 10px',background:'var(--blue-dim)',border:'1px solid rgba(59,130,246,0.3)',borderRadius:5,color:'var(--blue)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                          Передать
+                        </button>
+                      ):null}
 
-                    {/* Вернуть на склад (для мастера) */}
-                    {tool.status==='issued' && tool.issuedTo===currentUser && (
-                      <button onClick={()=>{setTrTo('Склад'); setTrToType('worker'); startTransfer(tool.id)}} style={{padding:'5px 10px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:5,color:'var(--text-secondary)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
-                        Сдать
-                      </button>
-                    )}
+                      {/* Вернуть на склад (для мастера) */}
+                      {tool.status==='issued' && tool.issuedTo===currentUser && (
+                        <button onClick={()=>{setTrTo('Склад'); setTrToType('worker'); startTransfer(tool.id)}} style={{padding:'5px 10px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',borderRadius:5,color:'var(--text-secondary)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                          Сдать
+                        </button>
+                      )}
 
-                    {/* Ремонт (Склад или Владелец) */}
-                    {['available','issued'].includes(tool.status) && (isSklad || isAdmin || tool.issuedTo===currentUser) && (
-                      <button onClick={()=>setRepairModal(tool.id)} style={{padding:'5px 10px',background:'var(--yellow-dim)',border:'1px solid rgba(234,179,8,0.3)',borderRadius:5,color:'var(--yellow)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
-                        В ремонт
-                      </button>
-                    )}
+                      {/* Ремонт (Склад или Владелец) */}
+                      {['available','issued'].includes(tool.status) && (isSklad || isAdmin || isMaster || tool.issuedTo===currentUser) && (
+                        <button onClick={()=>setRepairModal(tool.id)} style={{padding:'5px 10px',background:'var(--yellow-dim)',border:'1px solid rgba(234,179,8,0.3)',borderRadius:5,color:'var(--yellow)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                          В ремонт
+                        </button>
+                      )}
 
-                    {/* Списание (Только владелец инициирует заявку) */}
-                    {tool.status==='issued' && tool.issuedTo===currentUser && (
-                      <button onClick={()=>setWriteoffModal(tool.id)} style={{padding:'5px 10px',background:'var(--red-dim)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:5,color:'var(--red)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
-                        Списать
-                      </button>
-                    )}
+                      {/* Списание (Только владелец инициирует заявку) */}
+                      {tool.status==='issued' && tool.issuedTo===currentUser && (
+                        <button onClick={()=>setWriteoffModal(tool.id)} style={{padding:'5px 10px',background:'var(--red-dim)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:5,color:'var(--red)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                          Списать
+                        </button>
+                      )}
 
-                    {/* Возврат из ремонта (Склад) */}
-                    {tool.status==='repair' && (isSklad || isAdmin) && (
-                      <button onClick={()=>returnFromRepairClick(tool.id)} style={{padding:'5px 10px',background:'var(--green-dim)',border:'1px solid rgba(34,197,94,0.3)',borderRadius:5,color:'var(--green)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
-                        Готово
-                      </button>
-                    )}
-                  </div>
+                      {/* Возврат из ремонта (Склад) */}
+                      {tool.status==='repair' && (isSklad || isAdmin || isMaster) && (
+                        <button onClick={()=>returnFromRepairClick(tool.id)} style={{padding:'5px 10px',background:'var(--green-dim)',border:'1px solid rgba(34,197,94,0.3)',borderRadius:5,color:'var(--green)',fontSize:11,fontWeight:700,cursor:'pointer'}}>
+                          Готово
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
