@@ -39,12 +39,13 @@ export default function DashboardPage() {
     }
   }, [user])
 
-  const totalHoursToday = stats.brigadeMembers.reduce((sum, m) => {
+  const rawTotalHoursToday = stats.brigadeMembers.reduce((sum, m) => {
     if (m.hasCheckedIn && m.details?.total) {
       return sum + Number(m.details.total)
     }
     return sum
   }, 0)
+  const totalHoursToday = Math.round(rawTotalHoursToday * 100) / 100
 
   const filteredMembers = stats.brigadeMembers.filter(m => {
     if (brigadeFilter === 'checkedIn') return m.hasCheckedIn
