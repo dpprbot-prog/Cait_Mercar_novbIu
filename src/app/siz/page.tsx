@@ -547,7 +547,9 @@ export default function PPEPage() {
           <Check size={15} color="var(--green)"/> {toast}
         </div>
       )}
-      <HistoryFeed logs={auditLogs} />
+      {user && ['Админ', 'Склад', 'Мастер', 'Снабженец', 'Снабжение'].includes(user.role) && (
+        <HistoryFeed logs={auditLogs} />
+      )}
     </AppLayout>
   )
 }

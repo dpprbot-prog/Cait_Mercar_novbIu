@@ -28,7 +28,7 @@ const NAV = [
   { href: '/tools',       label: 'Инструмент', icon: Wrench,          roles: ['*'] },
   { href: '/objects',     label: 'Объекты',    icon: Building2,       roles: ['Админ'] },
   { href: '/employees',   label: 'Сотрудники', icon: Users,           roles: ['Админ'] },
-  { href: '/history',     label: 'История',    icon: History,         roles: ['Админ'] },
+  { href: '/history',     label: 'История',    icon: History,         roles: ['Админ', 'Склад', 'Мастер', 'Снабженец', 'Снабжение'] },
 ]
 
 import { useAuth } from '@/components/AuthProvider'

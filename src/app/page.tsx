@@ -299,9 +299,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div style={{marginTop:24}}>
-        <HistoryFeed logs={globalLogs} />
-      </div>
+      {user && ['Админ', 'Склад', 'Мастер', 'Снабженец', 'Снабжение'].includes(user.role) && (
+        <div style={{marginTop:24}}>
+          <HistoryFeed logs={globalLogs} />
+        </div>
+      )}
     </AppLayout>
   )
 }

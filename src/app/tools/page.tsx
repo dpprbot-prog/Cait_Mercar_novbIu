@@ -721,7 +721,9 @@ export default function ToolsPage() {
         onClose={() => setModal(p => ({ ...p, isOpen: false }))}
         onConfirm={modal.onConfirm}
       />
-      <HistoryFeed logs={auditLogs} />
+      {user && ['Админ', 'Склад', 'Мастер', 'Снабженец', 'Снабжение'].includes(user.role) && (
+        <HistoryFeed logs={auditLogs} />
+      )}
     </AppLayout>
   )
 }
