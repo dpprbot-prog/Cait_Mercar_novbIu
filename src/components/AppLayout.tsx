@@ -437,7 +437,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Page */}
         <main className="page">
-          {children}
+          <div style={{ width: '100%', maxWidth: '1600px', margin: '0 auto' }}>
+            {children}
+          </div>
         </main>
       </div>
       <Modal 
