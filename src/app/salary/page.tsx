@@ -474,7 +474,8 @@ export default function SalaryPage() {
                   </thead>
                   <tbody>
                     {timesheetData && timesheetData.map((item: any) => {
-                      const total = Object.values(item.days).reduce((acc: number, day: any) => acc + day.hours, 0)
+                      const rawTotal = Object.values(item.days).reduce((acc: number, day: any) => acc + day.hours, 0)
+                      const total = Math.round(rawTotal * 100) / 100
                       return (
                         <tr key={item.worker.id} style={{borderBottom:'1px solid rgba(255,255,255,0.05)'}}>
                           <td style={{position:'sticky', left:0, zIndex:10, background:'var(--bg-surface)', padding:'12px 14px', borderRight:'2px solid var(--border)'}}>
