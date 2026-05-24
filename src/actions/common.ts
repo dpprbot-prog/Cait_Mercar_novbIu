@@ -34,29 +34,27 @@ export async function getDashboardStats(workerId: string) {
   const activeSupply = db.prepare("SELECT COUNT(*) as count FROM supply_items WHERE m_status NOT IN ('delivered', 'accepted')").get() as { count: number }
   const urgentSupply = db.prepare("SELECT COUNT(*) as count FROM supply_orders o JOIN supply_items i ON o.id = i.order_id WHERE o.priority = 'urgent' AND i.m_status NOT IN ('delivered', 'accepted')").get() as { count: number }
   
-  // 3. Бригада: количество людей и те, кто отметился сегодня
-  const user = db.prepare(`
-    SELECT w.brigade_id, b.name as brigade_name 
-    FROM workers w 
-    LEFT JOIN brigades b ON w.brigade_id = b.id 
-    WHERE w.id = ?
-  `).get(workerId) as { brigade_id: string, brigade_name: string | null } | undefined
+  // 3. Узнаем роль пользователя
+  const currentUser = db.prepare('SELECT role FROM workers WHERE id = ?').get(workerId) as { role: string } | undefined
+  const isAdmin = currentUser?.role === 'Админ'
 
+  // 4. Бригада: количество людей и те, кто отметился сегодня
   let brigadeCount = 0
   let checkedIn = 0
   let brigadeMembers: any[] = []
-  let brigadeName = user?.brigade_name || user?.brigade_id || '—'
+  let brigadeName = '—'
 
-  if (user?.brigade_id) {
-    // Список всех участников бригады
+  if (isAdmin) {
+    // Для Админа: выбираем вообще всех активных сотрудников компании
+    brigadeName = 'Все бригады'
     const members = db.prepare(`
-      SELECT id, login, name, user_color, initials, role
-      FROM workers 
-      WHERE brigade_id = ? AND is_approved = 1 AND is_blocked = 0
-      ORDER BY name
-    `).all(user.brigade_id) as any[]
+      SELECT w.id, w.login, w.name, w.user_color, w.initials, w.role, w.brigade_id, b.name as brigade_name
+      FROM workers w
+      LEFT JOIN brigades b ON w.brigade_id = b.id
+      WHERE w.is_approved = 1 AND w.is_blocked = 0
+      ORDER BY w.name
+    `).all() as any[]
 
-    // Проверка, кто из них сегодня ввел часы
     brigadeMembers = members.map(m => {
       const entry = db.prepare(`
         SELECT start_time, end_time, lunch_min, hours_total 
@@ -78,9 +76,49 @@ export async function getDashboardStats(workerId: string) {
 
     brigadeCount = members.length
     checkedIn = brigadeMembers.filter(m => m.hasCheckedIn).length
+  } else {
+    // Для обычного пользователя/бригадира: берем только его бригаду
+    const user = db.prepare(`
+      SELECT w.brigade_id, b.name as brigade_name 
+      FROM workers w 
+      LEFT JOIN brigades b ON w.brigade_id = b.id 
+      WHERE w.id = ?
+    `).get(workerId) as { brigade_id: string, brigade_name: string | null } | undefined
+
+    if (user?.brigade_id) {
+      brigadeName = user.brigade_name || user.brigade_id
+      const members = db.prepare(`
+        SELECT id, login, name, user_color, initials, role
+        FROM workers 
+        WHERE brigade_id = ? AND is_approved = 1 AND is_blocked = 0
+        ORDER BY name
+      `).all(user.brigade_id) as any[]
+
+      brigadeMembers = members.map(m => {
+        const entry = db.prepare(`
+          SELECT start_time, end_time, lunch_min, hours_total 
+          FROM time_entries 
+          WHERE worker_id = ? AND date = ?
+        `).get(m.id, today) as any
+
+        return {
+          ...m,
+          hasCheckedIn: !!entry,
+          details: entry ? {
+            start: entry.start_time,
+            end: entry.end_time,
+            lunch: entry.lunch_min,
+            total: entry.hours_total
+          } : null
+        }
+      })
+
+      brigadeCount = members.length
+      checkedIn = brigadeMembers.filter(m => m.hasCheckedIn).length
+    }
   }
 
-  // 4. СИЗ: сколько скоро истекает или уже истёк
+  // 5. СИЗ: сколько скоро истекает или уже истёк
   const sizWarnings = db.prepare("SELECT COUNT(*) as count FROM siz_items WHERE status = 'expired' OR status = 'active'").get() as { count: number }
 
   return {

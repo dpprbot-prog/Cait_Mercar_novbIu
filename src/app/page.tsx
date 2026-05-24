@@ -22,14 +22,31 @@ export default function DashboardPage() {
   })
   const [recentOrders, setRecentOrders] = useState<Order[]>([])
   const [globalLogs, setGlobalLogs] = useState<AuditLog[]>([])
+  const [brigadeFilter, setBrigadeFilter] = useState<'all' | 'checkedIn'>('all')
 
   useEffect(() => {
     if (user) {
       getDashboardStats(user.id).then(setStats)
       getSupplyOrders().then(orders => setRecentOrders(orders.slice(0, 3)))
       getAuditLogs({ limit: 10 }).then(setGlobalLogs)
+      
+      if (user.role === 'Админ') {
+        setBrigadeFilter('checkedIn')
+      }
     }
   }, [user])
+
+  const totalHoursToday = stats.brigadeMembers.reduce((sum, m) => {
+    if (m.hasCheckedIn && m.details?.total) {
+      return sum + Number(m.details.total)
+    }
+    return sum
+  }, 0)
+
+  const filteredMembers = stats.brigadeMembers.filter(m => {
+    if (brigadeFilter === 'checkedIn') return m.hasCheckedIn
+    return true
+  })
 
   const STATS_CARDS = [
     {
@@ -114,20 +131,75 @@ export default function DashboardPage() {
         {/* Tabel */}
         <div className="card">
           <div className="card-title">
-            Бригада сегодня
-            <a href="/tabel" style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
-              Подробнее →
-            </a>
+            <span>Бригада сегодня</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {/* Filter segmented control */}
+              <div style={{
+                display: 'inline-flex',
+                background: 'var(--bg-elevated)',
+                padding: 2,
+                borderRadius: 6,
+                border: '1px solid var(--border-light)'
+              }}>
+                <button
+                  onClick={() => setBrigadeFilter('all')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    background: brigadeFilter === 'all' ? 'var(--accent)' : 'transparent',
+                    color: brigadeFilter === 'all' ? '#fff' : 'var(--text-secondary)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  Все ({stats.brigadeSize})
+                </button>
+                <button
+                  onClick={() => setBrigadeFilter('checkedIn')}
+                  style={{
+                    padding: '3px 8px',
+                    borderRadius: 4,
+                    fontSize: 10,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    background: brigadeFilter === 'checkedIn' ? 'var(--accent)' : 'transparent',
+                    color: brigadeFilter === 'checkedIn' ? '#fff' : 'var(--text-secondary)',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  С часами ({stats.checkedInCount})
+                </button>
+              </div>
+              <a href="/tabel" style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+                Подробнее →
+              </a>
+            </div>
           </div>
           <div style={{padding: '0 0 16px 0'}}>
-            <p style={{fontSize:11, color:'var(--text-muted)', marginBottom:12, padding:'0 16px', textTransform:'uppercase', fontWeight:700, letterSpacing:0.5}}>
-              Всего: {stats.brigadeSize} · Отметились: {stats.checkedInCount}
-            </p>
+            <div style={{
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              fontSize: 11, 
+              color: 'var(--text-muted)', 
+              marginBottom: 12, 
+              padding: '0 16px', 
+              textTransform: 'uppercase', 
+              fontWeight: 700, 
+              letterSpacing: 0.5
+            }}>
+              <span>Всего: {stats.brigadeSize} · Отметились: {stats.checkedInCount}</span>
+              <span style={{ color: 'var(--green)' }}>Часов сегодня: {totalHoursToday} ч</span>
+            </div>
             <div style={{display:'flex', flexDirection:'column', gap:2}}>
-              {stats.brigadeMembers.length === 0 ? (
-                <div style={{padding:'20px 16px', textAlign:'center', color:'var(--text-muted)', fontSize:13}}>Бригада не назначена</div>
+              {filteredMembers.length === 0 ? (
+                <div style={{padding:'20px 16px', textAlign:'center', color:'var(--text-muted)', fontSize:13}}>
+                  {brigadeFilter === 'checkedIn' ? 'Никто еще не ввел часы сегодня' : 'Бригада не назначена'}
+                </div>
               ) : (
-                stats.brigadeMembers.map(m => (
+                filteredMembers.map(m => (
                   <div key={m.id} style={{display:'flex', flexDirection:'column', padding:'10px 16px', borderBottom:'1px solid rgba(255,255,255,0.02)', transition:'background 0.2s'}} onMouseEnter={e=>e.currentTarget.style.background='rgba(255,255,255,0.01)'} onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
                     <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: m.hasCheckedIn ? 8 : 0}}>
                       <div style={{display:'flex', alignItems:'center', gap:10}}>
@@ -136,7 +208,7 @@ export default function DashboardPage() {
                         </div>
                         <div>
                           <div style={{fontSize:13, fontWeight:700, color: m.hasCheckedIn ? '#fff' : 'var(--text-muted)'}}>{m.name}</div>
-                          <div style={{fontSize:10, color:'var(--text-muted)'}}>{m.role}</div>
+                          <div style={{fontSize:10, color:'var(--text-muted)'}}>{m.role}{m.brigade_name ? ` · ${m.brigade_name}` : ''}</div>
                         </div>
                       </div>
                       
