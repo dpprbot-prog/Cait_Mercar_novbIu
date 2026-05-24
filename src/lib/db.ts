@@ -208,7 +208,34 @@ function initDb() {
       details TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS salary_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      worker_id TEXT NOT NULL,
+      month INTEGER NOT NULL,
+      year INTEGER NOT NULL,
+      amount INTEGER NOT NULL,
+      paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(worker_id, month, year),
+      FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
+    );
   `)
+
+  // Миграция: создаем таблицу salary_payments, если база уже существовала
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS salary_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        worker_id TEXT NOT NULL,
+        month INTEGER NOT NULL,
+        year INTEGER NOT NULL,
+        amount INTEGER NOT NULL,
+        paid_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(worker_id, month, year),
+        FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
+      );
+    `)
+  } catch (e) {}
 
   // Миграция: добавляем колонку is_blocked, если её нет
   try {

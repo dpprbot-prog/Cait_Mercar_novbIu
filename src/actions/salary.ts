@@ -4,6 +4,7 @@ import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { logAction } from './history'
 import { getCurrentUser } from './auth'
+import { createNotification } from './notifications'
 
 export interface WorkerSalaryData {
   id: string
@@ -18,6 +19,7 @@ export interface WorkerSalaryData {
   bonuses: number
   penalties: number
   status: 'pending' | 'paid'
+  outstandingAdvance: number
 }
 
 export interface BrigadeSalaryData {
@@ -63,14 +65,13 @@ export async function getSalaryData(month: number, year: number): Promise<Brigad
       
       const hours = timeData.total || 0
 
-      // Financials for month/year
+      // Financials for month/year (Only load advances where source is NULL as salary deductions)
       const finData = db.prepare(`
         SELECT type, SUM(amount) as total
         FROM financial_records
         WHERE worker_id = ? 
-        -- filtering by date could be tricky depending on how we save finance dates, 
-        -- assuming finance dates are YYYY-MM-DD or DD.MM.YYYY, we'll use LIKE
         AND date LIKE ?
+        AND (type != 'advance' OR source IS NULL)
         GROUP BY type
       `).all(w.id, dateSearch) as { type: string, total: number }[]
 
@@ -84,7 +85,28 @@ export async function getSalaryData(month: number, year: number): Promise<Brigad
         if (f.type === 'penalty') penalties = f.total
       })
 
-      // Assuming status is always 'pending' for now until Payment table is implemented
+      // Calculate total outstanding advance before this month
+      // 1. Total advances taken (source IS NOT NULL) at any time
+      const totalTaken = db.prepare(`
+        SELECT SUM(amount) as total 
+        FROM financial_records 
+        WHERE worker_id = ? AND type = 'advance' AND source IS NOT NULL
+      `).get(w.id) as { total: number | null }
+      
+      // 2. Total advance deductions (source IS NULL) BEFORE the current month
+      const totalRepaidBeforeThisMonth = db.prepare(`
+        SELECT SUM(amount) as total 
+        FROM financial_records 
+        WHERE worker_id = ? AND type = 'advance' AND source IS NULL AND date NOT LIKE ?
+      `).get(w.id, dateSearch) as { total: number | null }
+
+      const outstandingAdvance = Math.max(0, (totalTaken.total || 0) - (totalRepaidBeforeThisMonth.total || 0))
+
+      // Check payment status from salary_payments table
+      const payment = db.prepare('SELECT id FROM salary_payments WHERE worker_id = ? AND month = ? AND year = ?')
+                        .get(w.id, month, year) as { id: number } | undefined
+      const status = payment ? 'paid' : 'pending'
+
       workerSalaries.push({
         id: w.id,
         name: w.name,
@@ -97,7 +119,8 @@ export async function getSalaryData(month: number, year: number): Promise<Brigad
         advances,
         bonuses,
         penalties,
-        status: 'pending'
+        status,
+        outstandingAdvance
       })
     }
 
@@ -292,5 +315,109 @@ export async function createTimeEntry(data: {
   `).run(data.workerId, data.brigadeId, data.objectId, data.date, data.startTime, data.endTime, data.lunchMin, data.hoursTotal)
   
   revalidatePath('/salary')
+  return { success: true }
+}
+
+export async function payWorkerInDb(workerId: string, month: number, year: number, amount: number) {
+  db.prepare(`
+    INSERT OR REPLACE INTO salary_payments (worker_id, month, year, amount)
+    VALUES (?, ?, ?, ?)
+  `).run(workerId, month, year, amount)
+
+  const admin = await getCurrentUser()
+  const w = db.prepare('SELECT name FROM workers WHERE id = ?').get(workerId) as any
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'update',
+    entity_type: 'salary',
+    entity_id: workerId,
+    details: `Выплачена зарплата сотруднику "${w?.name}" за ${month + 1}.${year} в размере ${amount} руб.`
+  })
+  revalidatePath('/salary')
+  return { success: true }
+}
+
+export async function unpayWorkerInDb(workerId: string, month: number, year: number) {
+  db.prepare(`
+    DELETE FROM salary_payments 
+    WHERE worker_id = ? AND month = ? AND year = ?
+  `).run(workerId, month, year)
+
+  const admin = await getCurrentUser()
+  const w = db.prepare('SELECT name FROM workers WHERE id = ?').get(workerId) as any
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'update',
+    entity_type: 'salary',
+    entity_id: workerId,
+    details: `Отменена выплата зарплаты сотруднику "${w?.name}" за ${month + 1}.${year}`
+  })
+  revalidatePath('/salary')
+  return { success: true }
+}
+
+export async function sendSalaryNotifications(brigadeId: string, month: number, year: number, workersData: any[]) {
+  const monthStr = month < 9 ? `0${month + 1}` : `${month + 1}`
+  const dateSearch = `%.${monthStr}.${year}`
+  const MONTHS_RU = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
+
+  for (const w of workersData) {
+    // 1. Get entries for this worker and month to calculate breakdown of hours by objects
+    const entries = db.prepare(`
+      SELECT t.hours_total, o.name as object_name
+      FROM time_entries t
+      LEFT JOIN objects o ON t.object_id = o.id
+      WHERE t.worker_id = ? AND t.date LIKE ?
+    `).all(w.id, dateSearch) as { hours_total: number, object_name: string | null }[]
+
+    const objHours: Record<string, number> = {}
+    entries.forEach(e => {
+      const name = e.object_name || 'Не указан'
+      objHours[name] = (objHours[name] || 0) + e.hours_total
+    })
+
+    const objectsBreakdown = Object.entries(objHours)
+      .map(([name, h]) => `${name}: ${h.toFixed(1)} ч`)
+      .join(', ')
+
+    // 2. Format a beautiful calculation breakdown
+    const basePay = Math.round((w.hours * w.baseRate) * 100) / 100
+    const finalPay = basePay + w.bonuses - w.penalties - w.advances
+
+    let message = `Отработано часов: ${w.hours.toFixed(1)} ч.`
+    if (objectsBreakdown) {
+      message += `\nПо объектам — ${objectsBreakdown}.`
+    }
+    message += `\nСтавка: ${w.baseRate} ₽/ч.`
+    message += `\nНачислено по окладу: ${basePay.toLocaleString('ru-RU')} ₽.`
+    
+    if (w.bonuses > 0) {
+      message += `\nПремия: +${w.bonuses.toLocaleString('ru-RU')} ₽.`
+    }
+    if (w.advances > 0) {
+      message += `\nУдержано авансов: -${w.advances.toLocaleString('ru-RU')} ₽.`
+    }
+    if (w.penalties > 0) {
+      message += `\nШтрафы: -${w.penalties.toLocaleString('ru-RU')} ₽.`
+    }
+    
+    message += `\n\nИТОГ К ВЫДАЧЕ НА РУКИ: ${Math.max(0, finalPay).toLocaleString('ru-RU')} ₽.`
+
+    const title = `Расчетный лист за ${MONTHS_RU[month]} ${year}`
+
+    // 3. Send notification
+    await createNotification(w.id, 'salary_sheet', title, message)
+  }
+
+  const admin = await getCurrentUser()
+  const bName = db.prepare('SELECT name FROM brigades WHERE id = ?').get(brigadeId) as any
+  await logAction({
+    user_name: admin?.name || 'Система',
+    action_type: 'update',
+    entity_type: 'salary',
+    entity_id: brigadeId,
+    details: `Отправлены расчетные листы сотрудникам бригады "${bName?.name}" за ${MONTHS_RU[month]} ${year}`
+  })
+
   return { success: true }
 }

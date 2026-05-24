@@ -10,10 +10,11 @@ import {
 import { 
   getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, 
   BrigadeSalaryData, WorkerSalaryData, getMonthlyTimesheet,
-  getObjects, updateTimeEntry, deleteTimeEntry, createTimeEntry 
+  getObjects, updateTimeEntry, deleteTimeEntry, createTimeEntry,
+  payWorkerInDb, unpayWorkerInDb, sendSalaryNotifications
 } from '@/actions/salary'
 import { exportSalaryToTemplate } from '@/actions/export'
-import { FileDown, Calendar, Table as TableIcon, List } from 'lucide-react'
+import { FileDown, Calendar, Table as TableIcon, List, Send } from 'lucide-react'
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
 
@@ -195,12 +196,22 @@ export default function SalaryPage() {
     setAdjModal(null); setNumInput('')
   }
 
-  const payWorker = (wid: string) => {
-    // Fake payment, ideally we add logic to mark as paid in DB
-    const nb = [...brigades]
-    nb[bIdx].workers = nb[bIdx].workers.map(w => w.id === wid ? {...w, status: 'paid'} : w)
-    setBrigades(nb)
+  const payWorker = async (wid: string, amount: number) => {
+    await payWorkerInDb(wid, monthIdx, year, amount)
+    await loadData()
     showToast('Статус: выплачено')
+  }
+
+  const unpayWorker = async (wid: string) => {
+    await unpayWorkerInDb(wid, monthIdx, year)
+    await loadData()
+    showToast('Статус: выплата отменена')
+  }
+
+  const handleNotifyBrigade = async () => {
+    if (!activeB) return
+    await sendSalaryNotifications(activeB.id, monthIdx, year, activeB.workers)
+    showToast('Расчетные листки отправлены всей бригаде!')
   }
 
   const handleExportTemplate = () => {
@@ -296,6 +307,19 @@ export default function SalaryPage() {
             onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
           >
             <FileDown size={16}/> Шаблон
+          </button>
+
+          <button 
+            onClick={handleNotifyBrigade}
+            style={{
+              display:'flex', alignItems:'center', gap:8, padding:'8px 16px', background:'rgba(59,130,246,0.1)', color:'var(--blue)', 
+              border:'1px solid rgba(59,130,246,0.2)', borderRadius:20, fontWeight:700, fontSize:13, cursor:'pointer', transition:'all 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+            title="Отправить расчетные листки всем сотрудникам этой бригады в их личные кабинеты"
+          >
+            <Send size={16}/> Оповестить бригаду
           </button>
         </div>
       </div>
@@ -456,9 +480,28 @@ export default function SalaryPage() {
                                 <button onClick={()=>setAdvModal({wid:w.id})} style={{padding:'4px 8px',borderRadius:4,background:'var(--yellow-dim)',color:'var(--yellow)',border:'none',fontSize:10,fontWeight:700,cursor:'pointer'}}>АВАНС</button>
                               </div>
                               
-                              {!isPaid && (
+                              {isPaid ? (
                                 <button 
-                                  onClick={() => { if (finalPay > 0) payWorker(w.id) }} 
+                                  onClick={() => unpayWorker(w.id)} 
+                                  style={{
+                                    padding:'0 8px',
+                                    background:'var(--red-dim)',
+                                    border:'1px solid rgba(239,68,68,0.2)',
+                                    color: 'var(--red)',
+                                    borderRadius:6,
+                                    fontWeight:700,
+                                    fontSize:11,
+                                    cursor: 'pointer',
+                                    height:46, 
+                                    transition:'0.2s'
+                                  }}
+                                  title="Отменить статус выплаты"
+                                >
+                                  ОТМЕНА
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => { if (finalPay > 0) payWorker(w.id, finalPay) }} 
                                   disabled={finalPay <= 0}
                                   style={{
                                     padding:'0 12px',
@@ -655,19 +698,26 @@ export default function SalaryPage() {
 
       {/* ── MODALS (Reusable logic from previous setup, shortened for brevity) ── */}
       {/* АВАНС */}
-      {advModal && (
-        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
-          <div style={{background:'var(--bg-surface)',border:'1px solid var(--border-light)',borderRadius:'var(--radius)',padding:24,width:'100%',maxWidth:360}}>
-            <h3 style={{color:'var(--yellow)',marginBottom:8,display:'flex',alignItems:'center',gap:8}}><HandCoins size={18}/> Выдать аванс</h3>
-            <input type="text" placeholder="Сумма" value={numInput} onChange={e=>setNumInput(e.target.value.replace(/[^0-9]/g, ''))} autoFocus style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'12px',fontSize:18,color:'#fff',marginBottom:16,outline:'none'}} />
-            <div style={{display:'flex',gap:10}}>
-              <button onClick={()=>{setAdvModal(null); setNumInput('')}} style={{flex:1,padding:'12px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-muted)',fontWeight:600}}>Отмена</button>
-              <button onClick={resetAdvance} title="Сбросить все авансы" style={{padding:'12px',background:'var(--red-dim)',border:'none',borderRadius:6,color:'var(--red)',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={18}/></button>
-              <button onClick={applyAdvance} disabled={!numInput} style={{flex:2,padding:'12px',background:'var(--yellow)',border:'none',borderRadius:6,color:'#000',fontWeight:800}}>Выдать</button>
+      {advModal && (() => {
+        const modalWorker = activeB?.workers.find(w => w.id === advModal.wid)
+        const debt = modalWorker?.outstandingAdvance || 0
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:20}}>
+            <div style={{background:'var(--bg-surface)',border:'1px solid var(--border-light)',borderRadius:'var(--radius)',padding:24,width:'100%',maxWidth:360}}>
+              <h3 style={{color:'var(--yellow)',marginBottom:8,display:'flex',alignItems:'center',gap:8}}><HandCoins size={18}/> Удержать аванс из ЗП</h3>
+              <div style={{fontSize:13, color:'var(--text-muted)', marginBottom:12}}>
+                Текущий долг по авансам: <strong style={{color:'var(--orange)'}}>{formatMoney(debt)}</strong>
+              </div>
+              <input type="text" placeholder="Введите сумму удержания..." value={numInput} onChange={e=>setNumInput(e.target.value.replace(/[^0-9]/g, ''))} autoFocus style={{width:'100%',background:'var(--bg-elevated)',border:'1px solid var(--border-light)',borderRadius:6,padding:'12px',fontSize:18,color:'#fff',marginBottom:16,outline:'none'}} />
+              <div style={{display:'flex',gap:10}}>
+                <button onClick={()=>{setAdvModal(null); setNumInput('')}} style={{flex:1,padding:'12px',background:'var(--bg-elevated)',border:'1px solid var(--border)',borderRadius:6,color:'var(--text-muted)',fontWeight:600}}>Отмена</button>
+                <button onClick={resetAdvance} title="Сбросить все удержания" style={{padding:'12px',background:'var(--red-dim)',border:'none',borderRadius:6,color:'var(--red)',display:'flex',alignItems:'center',justifyContent:'center'}}><Trash2 size={18}/></button>
+                <button onClick={applyAdvance} disabled={!numInput} style={{flex:2,padding:'12px',background:'var(--yellow)',border:'none',borderRadius:6,color:'#000',fontWeight:800}}>Удержать</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ШТРАФ/ПРЕМИЯ */}
       {adjModal && (
