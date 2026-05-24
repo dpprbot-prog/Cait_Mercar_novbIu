@@ -767,5 +767,82 @@ input:checked + .slider:before {
     align-items: flex-start !important;
     gap: 8px !important;
   }
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .page-header > div:last-child {
+    width: 100% !important;
+    display: flex !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+  }
+  .page-header > div:last-child > button,
+  .page-header > div:last-child > a,
+  .page-header > div:last-child > div {
+    flex: 1 !important;
+    min-width: 120px !important;
+    justify-content: center !important;
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    border-radius: 8px !important;
+  }
+  
+  /* Tool Page Card Mobile Compression */
+  .tool-card {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
+  }
+  .tool-card > div:nth-child(2) {
+    flex: 1 !important;
+    min-width: 180px !important;
+  }
+  .tool-actions {
+    width: 100% !important;
+    min-width: 100% !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    border-top: 1px solid rgba(255,255,255,0.05) !important;
+    padding-top: 8px !important;
+    margin-top: 4px !important;
+    gap: 8px !important;
+  }
+  .tool-actions > div:first-child {
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+  }
+  .tool-actions > div:last-child {
+    display: flex !important;
+    gap: 4px !important;
+    flex-wrap: nowrap !important;
+  }
+  .tool-actions button {
+    padding: 5px 8px !important;
+    font-size: 10px !important;
+  }
+  
+  /* Brigade Tab Selector Mobile Compression */
+  .brigade-selector {
+    max-width: 100% !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+  .brigade-selector > button {
+    flex: 1 !important;
+    min-width: 140px !important;
+    padding: 8px 12px !important;
+  }
+  .brigade-selector > button div:first-child {
+    font-size: 13px !important;
+  }
+  .brigade-selector > button div:last-child {
+    font-size: 11px !important;
+  }
 }
+
 

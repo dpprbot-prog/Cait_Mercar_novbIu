@@ -327,7 +327,7 @@ export default function SalaryPage() {
       <div className="responsive-flex-col" style={{ width: '100%' }}>
         
         {/* ── LEFT: Brigade List ── */}
-        <div style={{width: '100%', maxWidth: '260px', flexShrink:0, display:'flex', flexDirection:'column', gap:8}}>
+        <div className="brigade-selector" style={{width: '100%', maxWidth: '260px', flexShrink:0, display:'flex', flexDirection:'column', gap:8}}>
           <div style={{fontSize:11, fontWeight:800, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:1, marginBottom:4, paddingLeft:8}}>Списки бригад</div>
           {brigades.map(b=>(
             <button key={b.id} onClick={()=>setActiveTab(b.id)}

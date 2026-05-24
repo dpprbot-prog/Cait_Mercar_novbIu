@@ -436,7 +436,7 @@ export default function ToolsPage() {
             </div>
 
             {exp && catTools.map(tool=>(
-              <div key={tool.id} style={{padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,0.04)',display:'flex',alignItems:'center',gap:16}}>
+              <div key={tool.id} className="tool-card" style={{padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,0.04)',display:'flex',alignItems:'center',gap:16}}>
                 {/* Condition + Photo */}
                 <div style={{flexShrink:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',width:40,gap:6}}>
                   <div style={{width:8,height:8,borderRadius:'50%',background:COND_COLOR[tool.condition]}} title={`Состояние: ${tool.condition === 'good' ? 'Отличное' : tool.condition === 'fair' ? 'Среднее' : 'Плохое'}`}/>
@@ -500,7 +500,7 @@ export default function ToolsPage() {
                 </div>
 
                 {/* Actions (Role-based) */}
-                <div style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end',minWidth:130}}>
+                <div className="tool-actions" style={{display:'flex',flexDirection:'column',gap:5,alignItems:'flex-end',minWidth:130}}>
                   <div style={{display:'flex', gap:8, alignItems:'center'}}>
                     {canManage && (
                       <div style={{display:'flex', gap:4}}>
