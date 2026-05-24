@@ -154,14 +154,13 @@ export default function TabelPage() {
 
   return (
     <AppLayout>
-      <div className="page-header">
-        <h1>Учёт времени</h1>
-        {!isOnline && (
+      {!isOnline && (
+        <div className="page-header" style={{ marginBottom: 16 }}>
           <span className="offline-badge">
             <WifiOff size={12} /> Офлайн — сохраняется локально
           </span>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className="tabel-grid">
         {/* ── LEFT: Time Form ── */}
