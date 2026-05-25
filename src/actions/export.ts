@@ -120,7 +120,7 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       FROM time_entries te
       JOIN objects o ON te.object_id = o.id
       JOIN workers w ON te.worker_id = w.id
-      WHERE te.date LIKE ? ${brigadeId ? 'AND w.brigade_id = ?' : ''}
+      WHERE te.date LIKE ? AND te.is_approved = 1 ${brigadeId ? 'AND w.brigade_id = ?' : ''}
       LIMIT 8
     `).all(`%${dateSuffix}`, ...(brigadeId ? [brigadeId] : [])) as any[]
 
@@ -181,7 +181,7 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       for (let day = 1; day <= 31; day++) {
         const dStr = day < 10 ? `0${day}` : `${day}`
         const dateKey = `${dStr}${dateSuffix}`
-        const entry = db.prepare('SELECT hours_total, object_id FROM time_entries WHERE worker_id = ? AND date = ?').get(w.id, dateKey) as { hours_total: number, object_id: string } | undefined
+        const entry = db.prepare('SELECT hours_total, object_id FROM time_entries WHERE worker_id = ? AND date = ? AND is_approved = 1').get(w.id, dateKey) as { hours_total: number, object_id: string } | undefined
         
         const cell = row.getCell(17 + day)
         if (entry && entry.hours_total > 0) {

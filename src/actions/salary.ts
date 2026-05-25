@@ -56,11 +56,11 @@ export async function getSalaryData(month: number, year: number): Promise<Brigad
     const workerSalaries: WorkerSalaryData[] = []
 
     for (const w of workers) {
-      // Sum hours for month/year
+      // Sum hours for month/year (only approved)
       const timeData = db.prepare(`
         SELECT SUM(hours_total) as total
         FROM time_entries 
-        WHERE worker_id = ? AND date LIKE ?
+        WHERE worker_id = ? AND date LIKE ? AND is_approved = 1
       `).get(w.id, dateSearch) as { total: number | null }
       
       const hours = timeData.total || 0
@@ -228,12 +228,12 @@ export async function getMonthlyTimesheet(month: number, year: number, brigadeId
   workersQuery += ' ORDER BY last_name, first_name'
   const workers = db.prepare(workersQuery).all(...params) as any[]
   
-  // 2. Получаем все записи за месяц
+  // 2. Получаем все записи за месяц (только подтвержденные)
   const entries = db.prepare(`
     SELECT t.id, t.worker_id, t.date, t.hours_total, t.start_time, t.end_time, t.lunch_min, t.object_id, o.name as object_name
     FROM time_entries t
     LEFT JOIN objects o ON t.object_id = o.id
-    WHERE t.date LIKE ?
+    WHERE t.date LIKE ? AND t.is_approved = 1
   `).all(dateSearch) as any[]
   
   // 3. Формируем структуру
@@ -362,12 +362,12 @@ export async function sendSalaryNotifications(brigadeId: string, month: number, 
   const MONTHS_RU = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
   for (const w of workersData) {
-    // 1. Get entries for this worker and month to calculate breakdown of hours by objects
+    // 1. Get entries for this worker and month to calculate breakdown of hours by objects (only approved)
     const entries = db.prepare(`
       SELECT t.hours_total, o.name as object_name
       FROM time_entries t
       LEFT JOIN objects o ON t.object_id = o.id
-      WHERE t.worker_id = ? AND t.date LIKE ?
+      WHERE t.worker_id = ? AND t.date LIKE ? AND t.is_approved = 1
     `).all(w.id, dateSearch) as { hours_total: number, object_name: string | null }[]
 
     const objHours: Record<string, number> = {}

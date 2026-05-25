@@ -113,7 +113,7 @@ export async function getWorkerHistory(workerId: string, limit = 30) {
   return db.prepare(`
     SELECT date, object_id as object, hours_total as hours
     FROM time_entries 
-    WHERE worker_id = ? AND hours_total > 0
+    WHERE worker_id = ? AND hours_total > 0 AND is_approved = 1
     ORDER BY date DESC
     LIMIT ?
   `).all(workerId, limit) as { date: string, object: string, hours: number }[]
