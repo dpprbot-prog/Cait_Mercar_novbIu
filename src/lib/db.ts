@@ -63,6 +63,8 @@ function initDb() {
       end_time TEXT,
       lunch_min INTEGER DEFAULT 0,
       hours_total REAL DEFAULT 0,
+      is_approved INTEGER DEFAULT 1,
+      work_description TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
     );
@@ -260,6 +262,10 @@ function initDb() {
 
   try {
     db.prepare('ALTER TABLE time_entries ADD COLUMN is_approved INTEGER DEFAULT 1').run()
+  } catch (e) {}
+
+  try {
+    db.prepare('ALTER TABLE time_entries ADD COLUMN work_description TEXT').run()
   } catch (e) {}
 
   // Сидирование данных (Первичное заполнение для теста)

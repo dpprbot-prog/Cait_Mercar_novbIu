@@ -275,3 +275,173 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     return { success: false, error: err.message }
   }
 }
+
+export async function exportWorkJournalExcel(data: {
+  objectName: string,
+  startDate: string, // DD.MM.YYYY
+  endDate: string    // DD.MM.YYYY
+}) {
+  try {
+    const entries = db.prepare(`
+      SELECT t.date, t.start_time, t.end_time, t.hours_total, t.work_description,
+             w.last_name, w.first_name, w.patronymic
+      FROM time_entries t
+      JOIN workers w ON t.worker_id = w.id
+      WHERE t.object_id = ? AND t.is_approved = 1
+    `).all(data.objectName) as any[]
+
+    const toDateObj = (dStr: string) => {
+      const parts = dStr.split('.')
+      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
+    }
+
+    const start = toDateObj(data.startDate)
+    const end = toDateObj(data.endDate)
+
+    const filtered = entries
+      .filter(e => {
+        const eDate = toDateObj(e.date)
+        return eDate >= start && eDate <= end
+      })
+      .sort((a, b) => {
+        return toDateObj(a.date).getTime() - toDateObj(b.date).getTime()
+      })
+
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Журнал работ')
+
+    worksheet.pageSetup.orientation = 'landscape'
+    worksheet.pageSetup.fitToWidth = 1
+    worksheet.pageSetup.fitToHeight = 0
+    worksheet.pageSetup.margins = {
+      left: 0.5, right: 0.5,
+      top: 0.5, bottom: 0.5,
+      header: 0.3, footer: 0.3
+    }
+
+    worksheet.mergeCells('A1:H1')
+    const titleCell = worksheet.getCell('A1')
+    titleCell.value = `ЖУРНАЛ УЧЕТА РАБОЧЕГО ВРЕМЕНИ И ВЫПОЛНЕННЫХ РАБОТ`
+    titleCell.font = { name: 'Arial', size: 14, bold: true }
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    worksheet.getRow(1).height = 30
+
+    worksheet.mergeCells('A2:H2')
+    const subCell = worksheet.getCell('A2')
+    subCell.value = `Объект: ${data.objectName}   |   Период: с ${data.startDate} по ${data.endDate}`
+    subCell.font = { name: 'Arial', size: 11, italic: true }
+    subCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    worksheet.getRow(2).height = 20
+
+    worksheet.addRow([])
+
+    const headers = [
+      '№ п/п',
+      'Дата',
+      'Период занятости сотрудника',
+      'ФИО сотрудника',
+      'Выполняемые работы',
+      'Итого часов',
+      'Подпись',
+      'Примечание'
+    ]
+
+    const headerRow = worksheet.addRow(headers)
+    headerRow.height = 30
+    headerRow.eachCell(cell => {
+      cell.font = { name: 'Arial', size: 10, bold: true }
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFEFEFEF' }
+      }
+      cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      cell.border = {
+        top: { style: 'medium', color: { argb: 'FF000000' } },
+        bottom: { style: 'medium', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } }
+      }
+    })
+
+    const indicesRow = worksheet.addRow([1, 2, 3, 4, 5, 6, 7, 8])
+    indicesRow.height = 15
+    indicesRow.eachCell(cell => {
+      cell.font = { name: 'Arial', size: 8, italic: true }
+      cell.alignment = { horizontal: 'center', vertical: 'middle' }
+      cell.border = {
+        top: { style: 'thin', color: { argb: 'FF000000' } },
+        bottom: { style: 'thin', color: { argb: 'FF000000' } },
+        left: { style: 'thin', color: { argb: 'FF000000' } },
+        right: { style: 'thin', color: { argb: 'FF000000' } }
+      }
+    })
+
+    filtered.forEach((e, idx) => {
+      let elapsedHours = e.hours_total || 0
+      if (e.start_time && e.end_time) {
+        const [hStart, mStart] = e.start_time.split(':').map(Number)
+        const [hEnd, mEnd] = e.end_time.split(':').map(Number)
+        const diffMin = (hEnd * 60 + mEnd) - (hStart * 60 + mStart)
+        if (diffMin > 0) {
+          elapsedHours = diffMin / 60
+        }
+      }
+      const roundedHours = Math.round(elapsedHours * 100) / 100
+      const periodStr = e.start_time && e.end_time ? `${e.start_time} - ${e.end_time}` : ''
+
+      const lastName = e.last_name || ''
+      const firstNameLetter = e.first_name ? `${e.first_name[0]}.` : ''
+      const patronymicLetter = e.patronymic ? ` ${e.patronymic[0]}.` : ''
+      const fio = `${lastName} ${firstNameLetter}${patronymicLetter}`.trim()
+
+      const rowData = [
+        idx + 1,
+        e.date,
+        periodStr,
+        fio,
+        e.work_description || '',
+        roundedHours,
+        '',
+        ''
+      ]
+
+      const row = worksheet.addRow(rowData)
+      row.height = 25
+      row.eachCell((cell, colIdx) => {
+        cell.font = { name: 'Arial', size: 10 }
+        if (colIdx === 4 || colIdx === 5) {
+          cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true }
+        } else {
+          cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        }
+        cell.border = {
+          top: { style: 'thin', color: { argb: 'FF000000' } },
+          bottom: { style: 'thin', color: { argb: 'FF000000' } },
+          left: { style: 'thin', color: { argb: 'FF000000' } },
+          right: { style: 'thin', color: { argb: 'FF000000' } }
+        }
+      })
+    })
+
+    worksheet.getColumn(1).width = 7
+    worksheet.getColumn(2).width = 12
+    worksheet.getColumn(3).width = 22
+    worksheet.getColumn(4).width = 24
+    worksheet.getColumn(5).width = 30
+    worksheet.getColumn(6).width = 12
+    worksheet.getColumn(7).width = 14
+    worksheet.getColumn(8).width = 18
+
+    const buffer = await workbook.xlsx.writeBuffer()
+    const dateRangeStr = `${data.startDate}_to_${data.endDate}`.replace(/\./g, '-')
+    return {
+      success: true,
+      base64: Buffer.from(buffer).toString('base64'),
+      fileName: `Journal_${data.objectName}_${dateRangeStr}.xlsx`
+    }
+  } catch (err: any) {
+    console.error('Work Journal export error:', err)
+    return { success: false, error: err.message }
+  }
+}

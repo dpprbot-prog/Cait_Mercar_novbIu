@@ -11,9 +11,10 @@ import {
   getSalaryData, updateBrigadePot, updateWorkerRate, addFinanceRecord, resetFinanceRecord, 
   BrigadeSalaryData, WorkerSalaryData, getMonthlyTimesheet,
   getObjects, updateTimeEntry, deleteTimeEntry, createTimeEntry,
-  payWorkerInDb, unpayWorkerInDb, sendSalaryNotifications
+  payWorkerInDb, unpayWorkerInDb, sendSalaryNotifications,
+  bulkUpdateWorkDescription
 } from '@/actions/salary'
-import { exportSalaryToTemplate } from '@/actions/export'
+import { exportSalaryToTemplate, exportWorkJournalExcel } from '@/actions/export'
 import { FileDown, Calendar, Table as TableIcon, List, Send } from 'lucide-react'
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь']
@@ -60,6 +61,11 @@ export default function SalaryPage() {
   const [year, setYear] = useState(new Date().getFullYear())
   const [viewMode, setViewMode] = useState<'list' | 'timesheet'>('timesheet')
   const [timesheetData, setTimesheetData] = useState<any>(null)
+
+  const [bulkObject, setBulkObject] = useState('')
+  const [bulkStartDate, setBulkStartDate] = useState('')
+  const [bulkEndDate, setBulkEndDate] = useState('')
+  const [bulkWork, setBulkWork] = useState('')
   
   const today = useMemo(() => new Date(), [])
   const isCurrentMonth = today.getMonth() === monthIdx && today.getFullYear() === year
@@ -538,6 +544,154 @@ export default function SalaryPage() {
                 <h2 style={{fontSize:18, fontWeight:800, color:'#fff', margin:0}}>Сводный табель часов ({activeB.name})</h2>
                 <div style={{fontSize:12, color:'var(--text-muted)'}}>Листайте вправо для просмотра всех дат →</div>
               </div>
+
+              {/* ПАНЕЛЬ ПАКЕТНОГО ЗАПОЛНЕНИЯ И ЭКСПОРТА ЖУРНАЛА */}
+              <div style={{
+                background: 'rgba(255,255,255,0.02)',
+                borderBottom: '1px solid var(--border)',
+                padding: '16px 20px',
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'flex-end',
+                gap: 16
+              }}>
+                <div style={{flex: '1 1 200px'}}>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Объект</label>
+                  <select 
+                    value={bulkObject} 
+                    onChange={e => setBulkObject(e.target.value)}
+                    style={{width:'100%', padding:10, borderRadius:8, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', fontSize:13}}
+                  >
+                    <option value="">Выберите объект</option>
+                    {allObjects.map(obj => <option key={obj.name} value={obj.name}>{obj.name}</option>)}
+                  </select>
+                </div>
+
+                <div style={{flex: '0 1 150px'}}>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Дата С</label>
+                  <input 
+                    type="date"
+                    value={bulkStartDate}
+                    onChange={e => setBulkStartDate(e.target.value)}
+                    style={{width:'100%', padding:9, borderRadius:8, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', fontSize:13}}
+                  />
+                </div>
+
+                <div style={{flex: '0 1 150px'}}>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Дата По</label>
+                  <input 
+                    type="date"
+                    value={bulkEndDate}
+                    onChange={e => setBulkEndDate(e.target.value)}
+                    style={{width:'100%', padding:9, borderRadius:8, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', fontSize:13}}
+                  />
+                </div>
+
+                <div style={{flex: '1 1 220px', position: 'relative'}}>
+                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Выполняемые работы</label>
+                  <div style={{display:'flex', gap:6}}>
+                    <input 
+                      type="text" 
+                      value={bulkWork} 
+                      onChange={e => setBulkWork(e.target.value)}
+                      placeholder="Впишите или выберите..."
+                      list="popular-works-list"
+                      style={{width:'100%', padding:10, borderRadius:8, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', fontSize:13}}
+                    />
+                    <datalist id="popular-works-list">
+                      <option value="Монтаж канатов" />
+                      <option value="Вязка арматуры" />
+                      <option value="Бетонирование конструкций" />
+                      <option value="Монтаж опалубки" />
+                      <option value="Демонтаж опалубки" />
+                      <option value="Монтаж металлоконструкций" />
+                      <option value="Земляные работы" />
+                      <option value="Подсобные работы" />
+                    </datalist>
+                  </div>
+                </div>
+
+                <div style={{display:'flex', gap:10, flexWrap:'wrap'}}>
+                  <button 
+                    disabled={!bulkObject || !bulkStartDate || !bulkEndDate || !bulkWork}
+                    onClick={async () => {
+                      const formatToDDMMYYYY = (val: string) => {
+                        const parts = val.split('-')
+                        return `${parts[2]}.${parts[1]}.${parts[0]}`
+                      }
+                      const result = await bulkUpdateWorkDescription({
+                        objectName: bulkObject,
+                        startDate: formatToDDMMYYYY(bulkStartDate),
+                        endDate: formatToDDMMYYYY(bulkEndDate),
+                        workDescription: bulkWork
+                      })
+                      if (result.success) {
+                        showToast(`Записано работ: ${result.count}`)
+                        getMonthlyTimesheet(monthIdx, year, activeTab).then(setTimesheetData)
+                        loadData()
+                      } else {
+                        showToast('Ошибка при пакетной записи')
+                      }
+                    }}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      background: (!bulkObject || !bulkStartDate || !bulkEndDate || !bulkWork) ? 'rgba(255,255,255,0.05)' : 'var(--blue)',
+                      border: 'none',
+                      color: (!bulkObject || !bulkStartDate || !bulkEndDate || !bulkWork) ? 'rgba(255,255,255,0.2)' : '#fff',
+                      fontWeight: 700,
+                      cursor: (!bulkObject || !bulkStartDate || !bulkEndDate || !bulkWork) ? 'not-allowed' : 'pointer',
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      height: 38
+                    }}
+                  >
+                    <FileSignature size={15} /> Записать работы
+                  </button>
+
+                  <button 
+                    disabled={!bulkObject || !bulkStartDate || !bulkEndDate}
+                    onClick={async () => {
+                      const formatToDDMMYYYY = (val: string) => {
+                        const parts = val.split('-')
+                        return `${parts[2]}.${parts[1]}.${parts[0]}`
+                      }
+                      const res = await exportWorkJournalExcel({
+                        objectName: bulkObject,
+                        startDate: formatToDDMMYYYY(bulkStartDate),
+                        endDate: formatToDDMMYYYY(bulkEndDate)
+                      })
+                      if (res.success && res.base64) {
+                        const link = document.createElement('a')
+                        link.href = `data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,${res.base64}`
+                        link.download = res.fileName
+                        link.click()
+                        showToast('Журнал сохранен')
+                      } else {
+                        showToast('Ошибка экспорта журнала')
+                      }
+                    }}
+                    style={{
+                      padding: '10px 16px',
+                      borderRadius: 8,
+                      background: (!bulkObject || !bulkStartDate || !bulkEndDate) ? 'rgba(255,255,255,0.05)' : 'var(--green)',
+                      border: 'none',
+                      color: (!bulkObject || !bulkStartDate || !bulkEndDate) ? 'rgba(255,255,255,0.2)' : '#fff',
+                      fontWeight: 700,
+                      cursor: (!bulkObject || !bulkStartDate || !bulkEndDate) ? 'not-allowed' : 'pointer',
+                      fontSize: 13,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      height: 38
+                    }}
+                  >
+                    <FileDown size={15} /> Печать журнала (Excel)
+                  </button>
+                </div>
+              </div>
               
               <div className="custom-tabel-scroll" style={{overflowX:'auto', width:'100%'}}>
                 <style dangerouslySetInnerHTML={{__html: `
@@ -768,6 +922,17 @@ export default function SalaryPage() {
                 </select>
               </div>
 
+              <div>
+                <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Выполняемые работы</label>
+                <input 
+                  type="text" 
+                  value={editTimeModal.entry.work_description || ''} 
+                  onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, work_description: e.target.value}})}
+                  placeholder="Например, Монтаж канатов..."
+                  style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                />
+              </div>
+
               <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
                 <div>
                   <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Начало</label>
@@ -870,7 +1035,8 @@ export default function SalaryPage() {
                         startTime: editTimeModal.entry.start_time,
                         endTime: editTimeModal.entry.end_time,
                         lunchMin: editTimeModal.entry.lunch_min,
-                        hoursTotal: editTimeModal.entry.hours_total
+                        hoursTotal: editTimeModal.entry.hours_total,
+                        workDescription: editTimeModal.entry.work_description
                       })
                       showToast('Время обновлено')
                     } else {
@@ -882,7 +1048,8 @@ export default function SalaryPage() {
                         startTime: editTimeModal.entry.start_time,
                         endTime: editTimeModal.entry.end_time,
                         lunchMin: editTimeModal.entry.lunch_min,
-                        hoursTotal: editTimeModal.entry.hours_total
+                        hoursTotal: editTimeModal.entry.hours_total,
+                        workDescription: editTimeModal.entry.work_description
                       })
                       showToast('Время успешно добавлено')
                     }

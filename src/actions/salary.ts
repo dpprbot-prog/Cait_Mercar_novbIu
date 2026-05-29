@@ -230,7 +230,7 @@ export async function getMonthlyTimesheet(month: number, year: number, brigadeId
   
   // 2. Получаем все записи за месяц (только подтвержденные)
   const entries = db.prepare(`
-    SELECT t.id, t.worker_id, t.date, t.hours_total, t.start_time, t.end_time, t.lunch_min, t.object_id, o.name as object_name
+    SELECT t.id, t.worker_id, t.date, t.hours_total, t.start_time, t.end_time, t.lunch_min, t.object_id, o.name as object_name, t.work_description
     FROM time_entries t
     LEFT JOIN objects o ON t.object_id = o.name
     WHERE t.date LIKE ? AND t.is_approved = 1
@@ -277,13 +277,14 @@ export async function updateTimeEntry(id: number, data: {
   startTime: string,
   endTime: string,
   lunchMin: number,
-  hoursTotal: number
+  hoursTotal: number,
+  workDescription?: string
 }) {
   db.prepare(`
     UPDATE time_entries 
-    SET object_id = ?, start_time = ?, end_time = ?, lunch_min = ?, hours_total = ?
+    SET object_id = ?, start_time = ?, end_time = ?, lunch_min = ?, hours_total = ?, work_description = ?
     WHERE id = ?
-  `).run(data.objectId, data.startTime, data.endTime, data.lunchMin, data.hoursTotal, id)
+  `).run(data.objectId, data.startTime, data.endTime, data.lunchMin, data.hoursTotal, data.workDescription || null, id)
   
   revalidatePath('/salary')
   return { success: true }
@@ -307,12 +308,23 @@ export async function createTimeEntry(data: {
   startTime: string,
   endTime: string,
   lunchMin: number,
-  hoursTotal: number
+  hoursTotal: number,
+  workDescription?: string
 }) {
   db.prepare(`
-    INSERT INTO time_entries (worker_id, brigade_id, object_id, date, start_time, end_time, lunch_min, hours_total)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(data.workerId, data.brigadeId, data.objectId, data.date, data.startTime, data.endTime, data.lunchMin, data.hoursTotal)
+    INSERT INTO time_entries (worker_id, brigade_id, object_id, date, start_time, end_time, lunch_min, hours_total, work_description)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    data.workerId, 
+    data.brigadeId, 
+    data.objectId, 
+    data.date, 
+    data.startTime, 
+    data.endTime, 
+    data.lunchMin, 
+    data.hoursTotal,
+    data.workDescription || null
+  )
   
   revalidatePath('/salary')
   return { success: true }
@@ -420,4 +432,45 @@ export async function sendSalaryNotifications(brigadeId: string, month: number, 
   })
 
   return { success: true }
+}
+
+export async function bulkUpdateWorkDescription(data: {
+  objectName: string,
+  startDate: string, // DD.MM.YYYY
+  endDate: string,   // DD.MM.YYYY
+  workDescription: string
+}) {
+  try {
+    const entries = db.prepare(`
+      SELECT id, date 
+      FROM time_entries 
+      WHERE object_id = ?
+    `).all(data.objectName) as { id: number, date: string }[]
+
+    const toDateObj = (dStr: string) => {
+      const parts = dStr.split('.')
+      return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`)
+    }
+
+    const start = toDateObj(data.startDate)
+    const end = toDateObj(data.endDate)
+
+    const updateStmt = db.prepare('UPDATE time_entries SET work_description = ? WHERE id = ?')
+
+    let count = 0
+    for (const e of entries) {
+      const eDate = toDateObj(e.date)
+      if (eDate >= start && eDate <= end) {
+        updateStmt.run(data.workDescription, e.id)
+        count++
+      }
+    }
+
+    revalidatePath('/salary')
+    revalidatePath('/tabel')
+    return { success: true, count }
+  } catch (error) {
+    console.error('Failed bulk update:', error)
+    return { success: false, error: 'Failed to update work descriptions' }
+  }
 }
