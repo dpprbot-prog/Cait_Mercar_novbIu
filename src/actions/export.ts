@@ -393,37 +393,45 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
         }
       })
 
-      // Итого часов, минут
+      // Итого часов, минут (с использованием формулы Excel)
       const cellAI = row.getCell(35)
-      cellAI.value = workerHours > 0 ? workerHours.toFixed(2).replace('.', ',') : '0,00'
+      cellAI.value = {
+        formula: `SUM(D${currentRow}:AH${currentRow})`,
+        result: workerHours
+      }
       cellAI.font = { name: 'Arial', size: 10, bold: true }
       cellAI.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
       cellAI.border = borderStyle
+      cellAI.numFmt = '0.00' // Формат чисел с десятичной частью
       grandTotalHours += workerHours
 
-      // Всего дней командировочных (К)
+      // Всего дней командировочных (К) (с использованием формулы Excel)
       const cellAJ = row.getCell(36)
-      if (workerType === 'К') {
-        cellAJ.value = workerDays > 0 ? workerDays : ''
-        grandTotalTravelDays += workerDays
-      } else {
-        cellAJ.value = ''
+      cellAJ.value = {
+        formula: `IF(C${currentRow}="К", COUNTIF(D${currentRow}:AH${currentRow}, ">0"), "")`,
+        result: workerType === 'К' && workerDays > 0 ? workerDays : undefined
       }
       cellAJ.font = { name: 'Arial', size: 10 }
       cellAJ.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
       cellAJ.border = borderStyle
+      cellAJ.numFmt = '0'
+      if (workerType === 'К') {
+        grandTotalTravelDays += workerDays
+      }
 
-      // Всего местных (М)
+      // Всего местных (М) (с использованием формулы Excel)
       const cellAK = row.getCell(37)
-      if (workerType === 'М') {
-        cellAK.value = workerDays > 0 ? workerDays : ''
-        grandTotalLocalDays += workerDays
-      } else {
-        cellAK.value = ''
+      cellAK.value = {
+        formula: `IF(C${currentRow}="М", COUNTIF(D${currentRow}:AH${currentRow}, ">0"), "")`,
+        result: workerType === 'М' && workerDays > 0 ? workerDays : undefined
       }
       cellAK.font = { name: 'Arial', size: 10 }
       cellAK.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
       cellAK.border = borderStyle
+      cellAK.numFmt = '0'
+      if (workerType === 'М') {
+        grandTotalLocalDays += workerDays
+      }
 
       currentRow++
     })
@@ -452,14 +460,13 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       }
     }
 
-    // Заполнение дневных сумм
+    // Заполнение дневных ячеек Итого (без вывода значений, по просьбе пользователя)
     dates.forEach((date, dateIdx) => {
       const colIndex = 4 + dateIdx
       const cell = footerRow.getCell(colIndex)
-      const daySum = dailyTotals[dateIdx]
       const weekend = isWeekend(date)
 
-      cell.value = daySum > 0 ? daySum : ''
+      cell.value = ''
       cell.font = { name: 'Arial', size: 10, bold: true }
       cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
       cell.border = borderStyle
@@ -469,29 +476,41 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
         : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
     })
 
-    // Итоговая сумма часов
+    // Итоговая сумма часов (с использованием формулы Excel)
     const footerHoursCell = footerRow.getCell(35)
-    footerHoursCell.value = grandTotalHours > 0 ? grandTotalHours.toFixed(2).replace('.', ',') : '0,00'
+    footerHoursCell.value = {
+      formula: `SUM(AI9:AI${currentRow - 1})`,
+      result: grandTotalHours
+    }
     footerHoursCell.font = { name: 'Arial', size: 10, bold: true }
     footerHoursCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
     footerHoursCell.border = borderStyle
     footerHoursCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    footerHoursCell.numFmt = '0.00'
 
-    // Всего командировочных дней
+    // Всего командировочных дней (с использованием формулы Excel)
     const footerTravelDaysCell = footerRow.getCell(36)
-    footerTravelDaysCell.value = grandTotalTravelDays > 0 ? grandTotalTravelDays : ''
+    footerTravelDaysCell.value = {
+      formula: `SUM(AJ9:AJ${currentRow - 1})`,
+      result: grandTotalTravelDays
+    }
     footerTravelDaysCell.font = { name: 'Arial', size: 10, bold: true }
     footerTravelDaysCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
     footerTravelDaysCell.border = borderStyle
     footerTravelDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    footerTravelDaysCell.numFmt = '0'
 
-    // Всего местных дней
+    // Всего местных дней (с использованием формулы Excel)
     const footerLocalDaysCell = footerRow.getCell(37)
-    footerLocalDaysCell.value = grandTotalLocalDays > 0 ? grandTotalLocalDays : ''
+    footerLocalDaysCell.value = {
+      formula: `SUM(AK9:AK${currentRow - 1})`,
+      result: grandTotalLocalDays
+    }
     footerLocalDaysCell.font = { name: 'Arial', size: 10, bold: true }
     footerLocalDaysCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
     footerLocalDaysCell.border = borderStyle
     footerLocalDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    footerLocalDaysCell.numFmt = '0'
 
     // 8. Легенда (К/М) и Цвета Объектов в подвале
     currentRow += 2
