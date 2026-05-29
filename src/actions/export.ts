@@ -118,7 +118,7 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     const activeObjects = db.prepare(`
       SELECT DISTINCT o.id, o.name
       FROM time_entries te
-      JOIN objects o ON te.object_id = o.id
+      JOIN objects o ON te.object_id = o.name
       JOIN workers w ON te.worker_id = w.id
       WHERE te.date LIKE ? AND te.is_approved = 1 ${brigadeId ? 'AND w.brigade_id = ?' : ''}
       LIMIT 8

@@ -232,7 +232,7 @@ export async function getMonthlyTimesheet(month: number, year: number, brigadeId
   const entries = db.prepare(`
     SELECT t.id, t.worker_id, t.date, t.hours_total, t.start_time, t.end_time, t.lunch_min, t.object_id, o.name as object_name
     FROM time_entries t
-    LEFT JOIN objects o ON t.object_id = o.id
+    LEFT JOIN objects o ON t.object_id = o.name
     WHERE t.date LIKE ? AND t.is_approved = 1
   `).all(dateSearch) as any[]
   
@@ -366,7 +366,7 @@ export async function sendSalaryNotifications(brigadeId: string, month: number, 
     const entries = db.prepare(`
       SELECT t.hours_total, o.name as object_name
       FROM time_entries t
-      LEFT JOIN objects o ON t.object_id = o.id
+      LEFT JOIN objects o ON t.object_id = o.name
       WHERE t.worker_id = ? AND t.date LIKE ? AND t.is_approved = 1
     `).all(w.id, dateSearch) as { hours_total: number, object_name: string | null }[]
 

@@ -764,7 +764,7 @@ export default function SalaryPage() {
                   style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
                 >
                   <option value="">Выберите объект</option>
-                  {allObjects.map(obj => <option key={obj.id} value={obj.id}>{obj.name}</option>)}
+                  {allObjects.map(obj => <option key={obj.name} value={obj.name}>{obj.name}</option>)}
                 </select>
               </div>
 
