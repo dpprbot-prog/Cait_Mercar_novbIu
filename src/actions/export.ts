@@ -83,63 +83,177 @@ export async function exportDirectoriesExcel() {
 import ExcelJS from 'exceljs'
 
 export async function exportSalaryToTemplate(month: number, year: number, brigadeId?: string) {
-  const monthStr = month < 9 ? `0${month + 1}` : `${month + 1}`
-  const dateSuffix = `.${monthStr}.${year}`
-  const monthName = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'][month]
-
   try {
-    const templatePath = path.join(process.cwd(), 'chasbI_pabochix.xlsx')
-    if (!fs.existsSync(templatePath)) {
-      throw new Error(`Шаблон не найден по пути: ${templatePath}`)
+    const workbook = new ExcelJS.Workbook()
+    const worksheet = workbook.addWorksheet('Табель')
+
+    // 1. Настройка страницы (Landscape, margins)
+    worksheet.pageSetup.orientation = 'landscape'
+    worksheet.pageSetup.fitToWidth = 1
+    worksheet.pageSetup.fitToHeight = 0
+    worksheet.pageSetup.margins = {
+      left: 0.25, right: 0.25,
+      top: 0.4, bottom: 0.4,
+      header: 0.2, footer: 0.2
     }
 
-    const workbook = new ExcelJS.Workbook()
-    await workbook.xlsx.readFile(templatePath)
-    const worksheet = workbook.getWorksheet(1)
-    if (!worksheet) throw new Error('Worksheet not found')
+    // Установка ширины колонок
+    worksheet.getColumn(1).width = 5   // №
+    worksheet.getColumn(2).width = 20  // ФИО
+    worksheet.getColumn(3).width = 12  // Комнад/Местный
+    for (let i = 4; i <= 34; i++) {
+      worksheet.getColumn(i).width = 4.5 // Дни 1-31
+    }
+    worksheet.getColumn(35).width = 14  // Итого часов, минут
+    worksheet.getColumn(36).width = 16  // Всего дней командировочных
+    worksheet.getColumn(37).width = 16  // Всего местных
 
-    // Очищаем «общие формулы» шаблона, переводя их в значения, чтобы избежать ошибки exceljs
-    worksheet.eachRow((row) => {
-      row.eachCell((cell) => {
-        if (cell.type === 6) { // 6 = ValueType.Formula
-          // @ts-ignore
-          const result = cell.result
-          cell.value = null // Сначала сбрасываем
-          cell.value = result // Оставляем только результат (или null)
-        }
-      })
+    // 2. Генерация дат pay period (с 15-го по 14-е число следующего месяца)
+    const dates: Date[] = []
+    for (let i = 0; i < 31; i++) {
+      dates.push(new Date(year, month, 15 + i))
+    }
+
+    const dateStrings = dates.map(d => {
+      const dd = d.getDate().toString().padStart(2, '0')
+      const mm = (d.getMonth() + 1).toString().padStart(2, '0')
+      const yyyy = d.getFullYear()
+      return `${dd}.${mm}.${yyyy}`
     })
 
-    const dateSuffix = `.${(month + 1).toString().padStart(2, '0')}.${year}`
-    worksheet.getRow(1).getCell(7).value = `${monthName} ${year}`
+    const placeholders = dateStrings.map(() => '?').join(',')
 
-    // 1.5 Собираем палитру цветов из ячеек D8-D15 (Статистика - цвет)
-    const objectMap = new Map<string, { color: any, rowIndex: number, name: string, totalHours: number, totalDays: number }>()
-    const activeObjects = db.prepare(`
-      SELECT DISTINCT o.id, o.name
+    // 3. Сбор активных объектов в данном периоде
+    let activeObjectsQuery = `
+      SELECT DISTINCT object_id
       FROM time_entries te
-      JOIN objects o ON te.object_id = o.name
       JOIN workers w ON te.worker_id = w.id
-      WHERE te.date LIKE ? AND te.is_approved = 1 ${brigadeId ? 'AND w.brigade_id = ?' : ''}
-      LIMIT 8
-    `).all(`%${dateSuffix}`, ...(brigadeId ? [brigadeId] : [])) as any[]
+      WHERE te.date IN (${placeholders}) AND te.is_approved = 1
+    `
+    const activeObjectsParams: any[] = [...dateStrings]
+    if (brigadeId) {
+      activeObjectsQuery += ` AND w.brigade_id = ?`
+      activeObjectsParams.push(brigadeId)
+    }
+    const activeObjects = db.prepare(activeObjectsQuery).all(...activeObjectsParams) as { object_id: string }[]
+    const objectNames = activeObjects.map(o => o.object_id).filter(Boolean)
+    const objectsStr = objectNames.length > 0 ? objectNames.join(', ') : 'Ремонтно-восстановительные работы'
 
-    activeObjects.forEach((obj, idx) => {
-      const rowIndex = 8 + idx
-      const colorCell = worksheet.getRow(rowIndex).getCell(4) // Колонка D
-      objectMap.set(obj.id, {
-        color: JSON.parse(JSON.stringify(colorCell.fill || {})), // Глубокое копирование стиля
-        rowIndex,
-        name: obj.name,
-        totalHours: 0,
-        totalDays: new Set().size // Просто инициализация
-      })
+    // 4. Заголовки (Top-Right Header & Title Block)
+    // Строка 1: AE1:AK1 -> Нач. строительного участка Ланевич В.В.
+    worksheet.mergeCells('AE1:AK1')
+    const managerCell = worksheet.getCell('AE1')
+    managerCell.value = 'Нач. строительного участка Ланевич В.В.'
+    managerCell.font = { name: 'Arial', size: 10, bold: false }
+    managerCell.alignment = { horizontal: 'right', vertical: 'middle' }
+    worksheet.getRow(1).height = 18
+
+    // Строка 2: AE2:AK2 -> Утверждаю __________
+    worksheet.mergeCells('AE2:AK2')
+    const approveCell = worksheet.getCell('AE2')
+    approveCell.value = 'Утверждаю __________'
+    approveCell.font = { name: 'Arial', size: 10, bold: false }
+    approveCell.alignment = { horizontal: 'right', vertical: 'middle' }
+    worksheet.getRow(2).height = 18
+
+    // Строка 4: Заголовок
+    worksheet.mergeCells('A4:AK4')
+    const titleCell = worksheet.getCell('A4')
+    titleCell.value = 'Табель учета рабочего времени.'
+    titleCell.font = { name: 'Arial', size: 16, bold: true }
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    worksheet.getRow(4).height = 24
+
+    // Строка 5: Подзаголовок (Красный)
+    worksheet.mergeCells('A5:AK5')
+    const subtitleCell = worksheet.getCell('A5')
+    subtitleCell.value = `${objectsStr} c ${dateStrings[0]}г.-${dateStrings[30]}г.`
+    subtitleCell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFF0000' } }
+    subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    worksheet.getRow(5).height = 18
+
+    // 5. Построение шапки таблицы (Rows 7-8)
+    const borderStyle = {
+      top: { style: 'thin' as const, color: { argb: 'FF000000' } },
+      bottom: { style: 'thin' as const, color: { argb: 'FF000000' } },
+      left: { style: 'thin' as const, color: { argb: 'FF000000' } },
+      right: { style: 'thin' as const, color: { argb: 'FF000000' } }
+    }
+
+    const getRuDayName = (d: Date) => ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][d.getDay()]
+    const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6
+
+    // Объединяем ячейки для столбцов A, B, C, AI, AJ, AK
+    worksheet.mergeCells(7, 1, 8, 1) // №
+    worksheet.mergeCells(7, 2, 8, 2) // ФИО
+    worksheet.mergeCells(7, 3, 8, 3) // Комнад/Местный
+    worksheet.mergeCells(7, 35, 8, 35) // Итого часов, минут
+    worksheet.mergeCells(7, 36, 8, 36) // Всего дней командировочных
+    worksheet.mergeCells(7, 37, 8, 37) // Всего местных
+
+    // Устанавливаем значения и стили для объединенных ячеек шапки
+    const headerConfigs = [
+      { col: 1, text: '№' },
+      { col: 2, text: 'ФИО' },
+      { col: 3, text: 'Комнад/\nМестный' },
+      { col: 35, text: 'Итого часов,\nминут' },
+      { col: 36, text: 'Всего дней\nкомандировочных' },
+      { col: 37, text: 'Всего дней\nместных' }
+    ]
+
+    const headerFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    const headerFont = { name: 'Arial', size: 9, bold: true }
+    const headerAlignment = { horizontal: 'center' as const, vertical: 'middle' as const, wrapText: true }
+
+    headerConfigs.forEach(cfg => {
+      const cell = worksheet.getRow(7).getCell(cfg.col)
+      cell.value = cfg.text
+      // Заливаем всю область (обе строки 7 и 8)
+      for (let r = 7; r <= 8; r++) {
+        const c = worksheet.getRow(r).getCell(cfg.col)
+        c.fill = headerFill
+        c.border = borderStyle
+        c.font = headerFont
+        c.alignment = headerAlignment
+      }
     })
-    
-    // Для подсчета уникальных дней по объектам
-    const objectDaysSet = new Map<string, Set<string>>()
 
-    // 2. Получаем данные сотрудников
+    // Дни (Столбцы 4-34)
+    dates.forEach((date, dateIdx) => {
+      const colIndex = 4 + dateIdx
+      const dayNum = date.getDate()
+      const dayName = getRuDayName(date)
+      const weekend = isWeekend(date)
+
+      const colFill = weekend
+        ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFD9D9' } }
+        : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+
+      const colFont = weekend
+        ? { name: 'Arial', size: 9, bold: true, color: { argb: 'FFC00000' } }
+        : { name: 'Arial', size: 9, bold: true }
+
+      // Ячейка числа (Row 7)
+      const cell7 = worksheet.getRow(7).getCell(colIndex)
+      cell7.value = dayNum
+      cell7.fill = colFill
+      cell7.font = colFont
+      cell7.border = borderStyle
+      cell7.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+
+      // Ячейка названия дня (Row 8)
+      const cell8 = worksheet.getRow(8).getCell(colIndex)
+      cell8.value = dayName
+      cell8.fill = colFill
+      cell8.font = colFont
+      cell8.border = borderStyle
+      cell8.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+    })
+
+    worksheet.getRow(7).height = 24
+    worksheet.getRow(8).height = 24
+
+    // 6. Получение данных сотрудников
     let workersQuery = `
       SELECT id, last_name, first_name, patronymic, role, base_rate, name
       FROM workers 
@@ -152,117 +266,274 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     }
     workersQuery += ` ORDER BY last_name`
     const workers = db.prepare(workersQuery).all(...params) as any[]
-    
+
     const brigadeName = brigadeId 
       ? (db.prepare('SELECT name FROM brigades WHERE id = ?').get(brigadeId) as any)?.name 
       : 'All'
 
-    // 3. Заполняем данные сотрудников
-    let currentRow = 6 
-    let totalAdvances = 0
-    let totalPenalties = 0
-    let totalBonuses = 0
-    let totalBasePay = 0
-    let totalToPay = 0
+    // Функция классификации сотрудников на командировочные/местные
+    const getWorkerTravelLocal = (lastName: string): 'К' | 'М' => {
+      const lname = (lastName || '').trim().toLowerCase()
+      if (lname.includes('логинов') || lname.includes('константинов') || lname.includes('егоров')) {
+        return 'М'
+      }
+      return 'К'
+    }
 
-    for (const w of workers) {
-      if (currentRow > 40) break 
+    const PRESET_COLORS = [
+      'FFD9E1F2', // Soft Blue
+      'FFE2EFDA', // Soft Green
+      'FFFFF2CC', // Soft Yellow
+      'FFE8D9F2', // Soft Purple
+      'FFFCE4D6', // Soft Orange
+      'FFD9F2E6', // Soft Teal
+      'FFFCE4F2', // Soft Rose
+      'FFF2F2F2'  // Soft Grey
+    ]
 
-      const fullName = `${w.last_name || ''} ${w.first_name || ''} ${w.patronymic || ''}`.trim() || w.name
+    const objectColors = new Map<string, string>()
+    let colorIdx = 0
+
+    const dailyTotals = new Array(31).fill(0)
+    let grandTotalHours = 0
+    let grandTotalTravelDays = 0
+    let grandTotalLocalDays = 0
+
+    let currentRow = 9
+
+    // Заполняем строки сотрудников
+    workers.forEach((w, idx) => {
       const row = worksheet.getRow(currentRow)
+      row.height = 36 // Высота для 3 строк ФИО
 
-      row.getCell(16).value = fullName
-      row.getCell(17).value = w.role || ''
-      row.getCell(13).value = w.base_rate || 0
+      // №
+      const cellA = row.getCell(1)
+      cellA.value = idx + 1
+      cellA.font = { name: 'Arial', size: 10 }
+      cellA.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      cellA.border = borderStyle
+
+      // ФИО (разбито на 3 строки)
+      const nameParts = []
+      if (w.last_name) nameParts.push(w.last_name)
+      if (w.first_name) nameParts.push(w.first_name)
+      if (w.patronymic) nameParts.push(w.patronymic)
+      const fioVal = nameParts.join('\n') || w.name
+
+      const cellB = row.getCell(2)
+      cellB.value = fioVal
+      cellB.font = { name: 'Arial', size: 10 }
+      cellB.alignment = { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true }
+      cellB.border = borderStyle
+
+      // Комнад/Местный
+      const workerType = getWorkerTravelLocal(w.last_name)
+      const cellC = row.getCell(3)
+      cellC.value = workerType
+      cellC.font = { name: 'Arial', size: 10 }
+      cellC.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      cellC.border = borderStyle
+
+      // Запросы часов по датам
+      const timeEntries = db.prepare(`
+        SELECT hours_total, object_id, date
+        FROM time_entries
+        WHERE worker_id = ? AND date IN (${placeholders}) AND is_approved = 1
+      `).all(w.id, ...dateStrings) as { hours_total: number, object_id: string, date: string }[]
+
+      const entryMap = new Map<string, { hours_total: number, object_id: string }>()
+      timeEntries.forEach(e => {
+        entryMap.set(e.date, e)
+      })
 
       let workerHours = 0
       let workerDays = 0
 
-      for (let day = 1; day <= 31; day++) {
-        const dStr = day < 10 ? `0${day}` : `${day}`
-        const dateKey = `${dStr}${dateSuffix}`
-        const entry = db.prepare('SELECT hours_total, object_id FROM time_entries WHERE worker_id = ? AND date = ? AND is_approved = 1').get(w.id, dateKey) as { hours_total: number, object_id: string } | undefined
-        
-        const cell = row.getCell(17 + day)
+      // Заполняем часы по дням
+      dates.forEach((date, dateIdx) => {
+        const colIndex = 4 + dateIdx
+        const dateKey = dateStrings[dateIdx]
+        const entry = entryMap.get(dateKey)
+
+        const cell = row.getCell(colIndex)
+        cell.font = { name: 'Arial', size: 10 }
+        cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+        cell.border = borderStyle
+
+        const weekend = isWeekend(date)
+        if (weekend) {
+          cell.fill = {
+            type: 'pattern' as const,
+            pattern: 'solid' as const,
+            fgColor: { argb: 'FFFFD9D9' }
+          }
+        }
+
         if (entry && entry.hours_total > 0) {
           cell.value = entry.hours_total
           workerHours += entry.hours_total
           workerDays++
+          dailyTotals[dateIdx] += entry.hours_total
 
-          // Применяем цвет объекта
-          const objData = objectMap.get(entry.object_id)
-          if (objData) {
-            cell.fill = objData.color
-            objData.totalHours += entry.hours_total
-            
-            if (!objectDaysSet.has(entry.object_id)) objectDaysSet.set(entry.object_id, new Set())
-            objectDaysSet.get(entry.object_id)?.add(dateKey)
+          if (entry.object_id) {
+            let objColor = objectColors.get(entry.object_id)
+            if (!objColor) {
+              objColor = PRESET_COLORS[colorIdx % PRESET_COLORS.length]
+              colorIdx++
+              objectColors.set(entry.object_id, objColor)
+            }
+            cell.fill = {
+              type: 'pattern' as const,
+              pattern: 'solid' as const,
+              fgColor: { argb: objColor }
+            }
           }
         } else {
-          cell.value = null
+          cell.value = ''
         }
+      })
+
+      // Итого часов, минут
+      const cellAI = row.getCell(35)
+      cellAI.value = workerHours > 0 ? workerHours.toFixed(2).replace('.', ',') : '0,00'
+      cellAI.font = { name: 'Arial', size: 10, bold: true }
+      cellAI.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      cellAI.border = borderStyle
+      grandTotalHours += workerHours
+
+      // Всего дней командировочных (К)
+      const cellAJ = row.getCell(36)
+      if (workerType === 'К') {
+        cellAJ.value = workerDays > 0 ? workerDays : ''
+        grandTotalTravelDays += workerDays
+      } else {
+        cellAJ.value = ''
       }
+      cellAJ.font = { name: 'Arial', size: 10 }
+      cellAJ.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      cellAJ.border = borderStyle
 
-      const cellN = row.getCell(14); cellN.value = workerDays
-      const cellO = row.getCell(15); cellO.value = workerHours
-      const basePay = workerHours * (w.base_rate || 0)
-      const cellL = row.getCell(12)
-      // @ts-ignore
-      if (cellL.model) { cellL.model.formula = undefined; cellL.model.sharedFormula = undefined; }
-      cellL.value = basePay
-      totalBasePay += basePay
+      // Всего местных (М)
+      const cellAK = row.getCell(37)
+      if (workerType === 'М') {
+        cellAK.value = workerDays > 0 ? workerDays : ''
+        grandTotalLocalDays += workerDays
+      } else {
+        cellAK.value = ''
+      }
+      cellAK.font = { name: 'Arial', size: 10 }
+      cellAK.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      cellAK.border = borderStyle
 
-      const finances = db.prepare(`SELECT type, amount FROM financial_records WHERE worker_id = ? AND date LIKE ?`).all(w.id, `%${dateSuffix}`) as any[]
-      const adv = finances.filter(f => f.type === 'advance').reduce((sum, f) => sum + f.amount, 0)
-      const penalty = finances.filter(f => f.type === 'penalty').reduce((sum, f) => sum + f.amount, 0)
-      const bonus = finances.filter(f => f.type === 'bonus').reduce((sum, f) => sum + f.amount, 0)
-
-      totalAdvances += adv; totalPenalties += penalty; totalBonuses += bonus
-      row.getCell(9).value = adv || null
-      row.getCell(10).value = penalty || null
-      row.getCell(11).value = bonus || null
-      
-      const cellG = row.getCell(7)
-      // @ts-ignore
-      if (cellG.model) { cellG.model.formula = undefined; cellG.model.sharedFormula = undefined; }
-      cellG.value = 0
-
-      const toPay = basePay + bonus - penalty - adv
-      const cellH = row.getCell(8)
-      // @ts-ignore
-      if (cellH.model) { cellH.model.formula = undefined; cellH.model.sharedFormula = undefined; }
-      cellH.value = toPay
-      totalToPay += toPay
-
-      row.commit()
       currentRow++
-    }
-
-    // 4. Заполняем Сводку (E1-E4)
-    const potRecord = brigadeId 
-      ? db.prepare('SELECT amount FROM brigade_pots WHERE brigade_id = ? AND month = ? AND year = ?').get(brigadeId, month, year) as any
-      : null
-    const potAmount = potRecord ? potRecord.amount : 0
-
-    worksheet.getRow(1).getCell(5).value = potAmount
-    worksheet.getRow(2).getCell(5).value = totalAdvances + totalPenalties
-    worksheet.getRow(3).getCell(5).value = totalBonuses
-    worksheet.getRow(4).getCell(5).value = potAmount - (totalBasePay + totalBonuses) 
-
-    // 5. Статистика по объектам (B8-E15) - очищаем старое и пишем новое
-    for (let r = 8; r <= 15; r++) {
-       const rObj = worksheet.getRow(r)
-       rObj.getCell(2).value = null
-       rObj.getCell(3).value = null
-       rObj.getCell(5).value = null
-    }
-
-    objectMap.forEach((data, objId) => {
-      const r = worksheet.getRow(data.rowIndex)
-      r.getCell(2).value = data.totalHours
-      r.getCell(3).value = objectDaysSet.get(objId)?.size || 0
-      r.getCell(5).value = data.name
     })
+
+    // 7. Строка "Итого:"
+    const footerRow = worksheet.getRow(currentRow)
+    footerRow.height = 24
+
+    // Подписи и заливка для первых трех ячеек
+    const footerLabelCell = footerRow.getCell(2)
+    footerLabelCell.value = 'Итого:'
+    
+    for (let c = 1; c <= 3; c++) {
+      const cell = footerRow.getCell(c)
+      cell.border = borderStyle
+      cell.font = { name: 'Arial', size: 10, bold: true }
+      cell.fill = {
+        type: 'pattern' as const,
+        pattern: 'solid' as const,
+        fgColor: { argb: 'FFF2F2F2' }
+      }
+      if (c === 2) {
+        cell.alignment = { horizontal: 'right' as const, vertical: 'middle' as const }
+      } else {
+        cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      }
+    }
+
+    // Заполнение дневных сумм
+    dates.forEach((date, dateIdx) => {
+      const colIndex = 4 + dateIdx
+      const cell = footerRow.getCell(colIndex)
+      const daySum = dailyTotals[dateIdx]
+      const weekend = isWeekend(date)
+
+      cell.value = daySum > 0 ? daySum : ''
+      cell.font = { name: 'Arial', size: 10, bold: true }
+      cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      cell.border = borderStyle
+
+      cell.fill = weekend
+        ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFD9D9' } }
+        : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    })
+
+    // Итоговая сумма часов
+    const footerHoursCell = footerRow.getCell(35)
+    footerHoursCell.value = grandTotalHours > 0 ? grandTotalHours.toFixed(2).replace('.', ',') : '0,00'
+    footerHoursCell.font = { name: 'Arial', size: 10, bold: true }
+    footerHoursCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+    footerHoursCell.border = borderStyle
+    footerHoursCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+
+    // Всего командировочных дней
+    const footerTravelDaysCell = footerRow.getCell(36)
+    footerTravelDaysCell.value = grandTotalTravelDays > 0 ? grandTotalTravelDays : ''
+    footerTravelDaysCell.font = { name: 'Arial', size: 10, bold: true }
+    footerTravelDaysCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+    footerTravelDaysCell.border = borderStyle
+    footerTravelDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+
+    // Всего местных дней
+    const footerLocalDaysCell = footerRow.getCell(37)
+    footerLocalDaysCell.value = grandTotalLocalDays > 0 ? grandTotalLocalDays : ''
+    footerLocalDaysCell.font = { name: 'Arial', size: 10, bold: true }
+    footerLocalDaysCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+    footerLocalDaysCell.border = borderStyle
+    footerLocalDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+
+    // 8. Легенда (К/М) и Цвета Объектов в подвале
+    currentRow += 2
+
+    const legendKRow = worksheet.getRow(currentRow)
+    const legendKCell = legendKRow.getCell(2)
+    legendKCell.value = 'К - командировочные'
+    legendKCell.font = { name: 'Arial', size: 9, italic: true }
+
+    const legendMRow = worksheet.getRow(currentRow + 1)
+    const legendMCell = legendMRow.getCell(2)
+    legendMCell.value = 'М - местные'
+    legendMCell.font = { name: 'Arial', size: 9, italic: true }
+
+    if (objectColors.size > 0) {
+      let legendRowIdx = currentRow + 3
+      const titleRow = worksheet.getRow(legendRowIdx)
+      titleRow.getCell(2).value = 'Условные обозначения объектов:'
+      titleRow.getCell(2).font = { name: 'Arial', size: 10, bold: true }
+      legendRowIdx++
+
+      objectColors.forEach((color, objName) => {
+        const objRow = worksheet.getRow(legendRowIdx)
+        
+        const cCell = objRow.getCell(2)
+        cCell.value = '   '
+        cCell.fill = {
+          type: 'pattern' as const,
+          pattern: 'solid' as const,
+          fgColor: { argb: color }
+        }
+        cCell.border = borderStyle
+        cCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+
+        const nCell = objRow.getCell(3)
+        nCell.value = objName
+        nCell.font = { name: 'Arial', size: 9 }
+        nCell.alignment = { horizontal: 'left' as const, vertical: 'middle' as const }
+
+        legendRowIdx++
+      })
+    }
 
     const buffer = await workbook.xlsx.writeBuffer()
     return {
