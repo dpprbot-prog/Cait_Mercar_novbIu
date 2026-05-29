@@ -87,6 +87,22 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     const workbook = new ExcelJS.Workbook()
     const worksheet = workbook.addWorksheet('Табель')
 
+    // Вспомогательный метод для перевода индекса колонки в буквы Excel (1 -> A, 27 -> AA, 37 -> AK)
+    const getColLetter = (colIdx: number): string => {
+      let temp = colIdx
+      let letter = ''
+      while (temp > 0) {
+        const modulo = (temp - 1) % 26
+        letter = String.fromCharCode(65 + modulo) + letter
+        temp = Math.floor((temp - modulo) / 26)
+      }
+      return letter
+    }
+
+    // Вычисляем количество дней в выбранном календарном месяце
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    const totalCols = 6 + daysInMonth
+
     // 1. Настройка страницы (Landscape, margins)
     worksheet.pageSetup.orientation = 'landscape'
     worksheet.pageSetup.fitToWidth = 1
@@ -101,17 +117,26 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     worksheet.getColumn(1).width = 5   // №
     worksheet.getColumn(2).width = 20  // ФИО
     worksheet.getColumn(3).width = 12  // Комнад/Местный
-    for (let i = 4; i <= 34; i++) {
-      worksheet.getColumn(i).width = 4.5 // Дни 1-31
+    for (let i = 4; i <= 3 + daysInMonth; i++) {
+      worksheet.getColumn(i).width = 4.5 // Дни 1-31/30/...
     }
-    worksheet.getColumn(35).width = 14  // Итого часов, минут
-    worksheet.getColumn(36).width = 16  // Всего дней командировочных
-    worksheet.getColumn(37).width = 16  // Всего местных
+    
+    const colIdxAI = 4 + daysInMonth
+    const colIdxAJ = 5 + daysInMonth
+    const colIdxAK = 6 + daysInMonth
+    const colLetterAI = getColLetter(colIdxAI)
+    const colLetterAJ = getColLetter(colIdxAJ)
+    const colLetterAK = getColLetter(colIdxAK)
+    const colLetterAH = getColLetter(3 + daysInMonth) // Последний день месяца
 
-    // 2. Генерация дат pay period (с 15-го по 14-е число следующего месяца)
+    worksheet.getColumn(colIdxAI).width = 14  // Итого часов, минут
+    worksheet.getColumn(colIdxAJ).width = 16  // Всего дней командировочных
+    worksheet.getColumn(colIdxAK).width = 16  // Всего местных
+
+    // 2. Генерация дат pay period (строго с 1-го числа до конца месяца)
     const dates: Date[] = []
-    for (let i = 0; i < 31; i++) {
-      dates.push(new Date(year, month, 15 + i))
+    for (let i = 1; i <= daysInMonth; i++) {
+      dates.push(new Date(year, month, i))
     }
 
     const dateStrings = dates.map(d => {
@@ -139,86 +164,80 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     const objectNames = activeObjects.map(o => o.object_id).filter(Boolean)
     const objectsStr = objectNames.length > 0 ? objectNames.join(', ') : 'Ремонтно-восстановительные работы'
 
-    // 4. Заголовки (Top-Right Header & Title Block)
-    // Строка 1: AE1:AK1 -> Нач. строительного участка Ланевич В.В.
-    worksheet.mergeCells('AE1:AK1')
-    const managerCell = worksheet.getCell('AE1')
+    // 4. Заголовки (Top-Right Header & Title Block с динамическим мержем)
+    const lastColLetter = getColLetter(totalCols)
+    const blockStartLetter = getColLetter(totalCols - 6)
+
+    // Строка 1:AE1:AK1 (Нач. строительного участка...)
+    worksheet.mergeCells(`${blockStartLetter}1:${lastColLetter}1`)
+    const managerCell = worksheet.getCell(`${blockStartLetter}1`)
     managerCell.value = 'Нач. строительного участка Ланевич В.В.'
-    managerCell.font = { name: 'Arial', size: 10, bold: false }
+    managerCell.font = { name: 'Times New Roman', size: 10, bold: false }
     managerCell.alignment = { horizontal: 'right', vertical: 'middle' }
     worksheet.getRow(1).height = 18
 
-    // Строка 2: AE2:AK2 -> Утверждаю __________
-    worksheet.mergeCells('AE2:AK2')
-    const approveCell = worksheet.getCell('AE2')
+    // Строка 2:AE2:AK2 (Утверждаю...)
+    worksheet.mergeCells(`${blockStartLetter}2:${lastColLetter}2`)
+    const approveCell = worksheet.getCell(`${blockStartLetter}2`)
     approveCell.value = 'Утверждаю __________'
-    approveCell.font = { name: 'Arial', size: 10, bold: false }
+    approveCell.font = { name: 'Times New Roman', size: 10, bold: false }
     approveCell.alignment = { horizontal: 'right', vertical: 'middle' }
     worksheet.getRow(2).height = 18
 
     // Строка 4: Заголовок
-    worksheet.mergeCells('A4:AK4')
+    worksheet.mergeCells(`A4:${lastColLetter}4`)
     const titleCell = worksheet.getCell('A4')
     titleCell.value = 'Табель учета рабочего времени.'
-    titleCell.font = { name: 'Arial', size: 16, bold: true }
+    titleCell.font = { name: 'Times New Roman', size: 16, bold: true }
     titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
     worksheet.getRow(4).height = 24
 
     // Строка 5: Подзаголовок (Красный)
-    worksheet.mergeCells('A5:AK5')
+    worksheet.mergeCells(`A5:${lastColLetter}5`)
     const subtitleCell = worksheet.getCell('A5')
-    subtitleCell.value = `${objectsStr} c ${dateStrings[0]}г.-${dateStrings[30]}г.`
-    subtitleCell.font = { name: 'Arial', size: 11, bold: true, color: { argb: 'FFFF0000' } }
+    subtitleCell.value = `${objectsStr} c ${dateStrings[0]}г.-${dateStrings[dateStrings.length - 1]}г.`
+    subtitleCell.font = { name: 'Times New Roman', size: 11, bold: true, color: { argb: 'FFFF0000' } }
     subtitleCell.alignment = { horizontal: 'center', vertical: 'middle' }
     worksheet.getRow(5).height = 18
 
-    // 5. Построение шапки таблицы (Rows 7-8)
-    const borderStyle = {
-      top: { style: 'thin' as const, color: { argb: 'FF000000' } },
-      bottom: { style: 'thin' as const, color: { argb: 'FF000000' } },
-      left: { style: 'thin' as const, color: { argb: 'FF000000' } },
-      right: { style: 'thin' as const, color: { argb: 'FF000000' } }
-    }
-
+    // 5. Построение шапки таблицы (Rows 8-9)
     const getRuDayName = (d: Date) => ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][d.getDay()]
     const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6
 
     // Объединяем ячейки для столбцов A, B, C, AI, AJ, AK
-    worksheet.mergeCells(7, 1, 8, 1) // №
-    worksheet.mergeCells(7, 2, 8, 2) // ФИО
-    worksheet.mergeCells(7, 3, 8, 3) // Комнад/Местный
-    worksheet.mergeCells(7, 35, 8, 35) // Итого часов, минут
-    worksheet.mergeCells(7, 36, 8, 36) // Всего дней командировочных
-    worksheet.mergeCells(7, 37, 8, 37) // Всего местных
+    worksheet.mergeCells(8, 1, 9, 1) // №
+    worksheet.mergeCells(8, 2, 9, 2) // ФИО
+    worksheet.mergeCells(8, 3, 9, 3) // Комнад/Местный
+    worksheet.mergeCells(8, colIdxAI, 9, colIdxAI) // Итого часов
+    worksheet.mergeCells(8, colIdxAJ, 9, colIdxAJ) // Всего дней командировочных
+    worksheet.mergeCells(8, colIdxAK, 9, colIdxAK) // Всего местных
 
     // Устанавливаем значения и стили для объединенных ячеек шапки
     const headerConfigs = [
       { col: 1, text: '№' },
       { col: 2, text: 'ФИО' },
       { col: 3, text: 'Комнад/\nМестный' },
-      { col: 35, text: 'Итого часов,\nминут' },
-      { col: 36, text: 'Всего дней\nкомандировочных' },
-      { col: 37, text: 'Всего дней\nместных' }
+      { col: colIdxAI, text: 'Итого\nчасов,\nминут' },
+      { col: colIdxAJ, text: 'Всего дней\nкомандиро-\nвочных' },
+      { col: colIdxAK, text: 'Всего дней\nместных' }
     ]
 
-    const headerFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
-    const headerFont = { name: 'Arial', size: 9, bold: true }
+    const headerFill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFFFFF' } } // Чистый белый
+    const headerFont = { name: 'Times New Roman', size: 10, bold: true }
     const headerAlignment = { horizontal: 'center' as const, vertical: 'middle' as const, wrapText: true }
 
     headerConfigs.forEach(cfg => {
-      const cell = worksheet.getRow(7).getCell(cfg.col)
+      const cell = worksheet.getRow(8).getCell(cfg.col)
       cell.value = cfg.text
-      // Заливаем всю область (обе строки 7 и 8)
-      for (let r = 7; r <= 8; r++) {
+      for (let r = 8; r <= 9; r++) {
         const c = worksheet.getRow(r).getCell(cfg.col)
         c.fill = headerFill
-        c.border = borderStyle
         c.font = headerFont
         c.alignment = headerAlignment
       }
     })
 
-    // Дни (Столбцы 4-34)
+    // Дни (Столбцы 4 до 3 + daysInMonth)
     dates.forEach((date, dateIdx) => {
       const colIndex = 4 + dateIdx
       const dayNum = date.getDate()
@@ -226,32 +245,30 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       const weekend = isWeekend(date)
 
       const colFill = weekend
-        ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFD9D9' } }
-        : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+        ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFD9D9' } } // розовый
+        : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFFFFF' } } // белый
 
       const colFont = weekend
-        ? { name: 'Arial', size: 9, bold: true, color: { argb: 'FFC00000' } }
-        : { name: 'Arial', size: 9, bold: true }
+        ? { name: 'Times New Roman', size: 9, bold: true, color: { argb: 'FFC00000' } }
+        : { name: 'Times New Roman', size: 9, bold: true }
 
-      // Ячейка числа (Row 7)
-      const cell7 = worksheet.getRow(7).getCell(colIndex)
-      cell7.value = dayNum
-      cell7.fill = colFill
-      cell7.font = colFont
-      cell7.border = borderStyle
-      cell7.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-
-      // Ячейка названия дня (Row 8)
+      // Ячейка числа (Row 8)
       const cell8 = worksheet.getRow(8).getCell(colIndex)
-      cell8.value = dayName
+      cell8.value = dayNum
       cell8.fill = colFill
       cell8.font = colFont
-      cell8.border = borderStyle
       cell8.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+
+      // Ячейка названия дня (Row 9)
+      const cell9 = worksheet.getRow(9).getCell(colIndex)
+      cell9.value = dayName
+      cell9.fill = colFill
+      cell9.font = colFont
+      cell9.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
     })
 
-    worksheet.getRow(7).height = 24
     worksheet.getRow(8).height = 24
+    worksheet.getRow(9).height = 24
 
     // 6. Получение данных сотрудников
     let workersQuery = `
@@ -294,12 +311,12 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     const objectColors = new Map<string, string>()
     let colorIdx = 0
 
-    const dailyTotals = new Array(31).fill(0)
+    const dailyTotals = new Array(daysInMonth).fill(0)
     let grandTotalHours = 0
     let grandTotalTravelDays = 0
     let grandTotalLocalDays = 0
 
-    let currentRow = 9
+    let currentRow = 10 // Начинаем с 10-й строки, так как шапка занимает 8 и 9 строки
 
     // Заполняем строки сотрудников
     workers.forEach((w, idx) => {
@@ -309,9 +326,8 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       // №
       const cellA = row.getCell(1)
       cellA.value = idx + 1
-      cellA.font = { name: 'Arial', size: 10 }
+      cellA.font = { name: 'Times New Roman', size: 10 }
       cellA.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-      cellA.border = borderStyle
 
       // ФИО (разбито на 3 строки)
       const nameParts = []
@@ -322,17 +338,15 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
 
       const cellB = row.getCell(2)
       cellB.value = fioVal
-      cellB.font = { name: 'Arial', size: 10 }
+      cellB.font = { name: 'Times New Roman', size: 10 }
       cellB.alignment = { horizontal: 'left' as const, vertical: 'middle' as const, wrapText: true }
-      cellB.border = borderStyle
 
       // Комнад/Местный
       const workerType = getWorkerTravelLocal(w.last_name)
       const cellC = row.getCell(3)
       cellC.value = workerType
-      cellC.font = { name: 'Arial', size: 10 }
+      cellC.font = { name: 'Times New Roman', size: 10 }
       cellC.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-      cellC.border = borderStyle
 
       // Запросы часов по датам
       const timeEntries = db.prepare(`
@@ -356,9 +370,8 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
         const entry = entryMap.get(dateKey)
 
         const cell = row.getCell(colIndex)
-        cell.font = { name: 'Arial', size: 10 }
+        cell.font = { name: 'Times New Roman', size: 10 }
         cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-        cell.border = borderStyle
 
         const weekend = isWeekend(date)
         if (weekend) {
@@ -394,40 +407,37 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       })
 
       // Итого часов, минут (с использованием формулы Excel)
-      const cellAI = row.getCell(35)
+      const cellAI = row.getCell(colIdxAI)
       cellAI.value = {
-        formula: `SUM(D${currentRow}:AH${currentRow})`,
+        formula: `SUM(D${currentRow}:${colLetterAH}${currentRow})`,
         result: workerHours
       }
-      cellAI.font = { name: 'Arial', size: 10, bold: true }
+      cellAI.font = { name: 'Times New Roman', size: 10, bold: true }
       cellAI.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-      cellAI.border = borderStyle
       cellAI.numFmt = '0.00' // Формат чисел с десятичной частью
       grandTotalHours += workerHours
 
       // Всего дней командировочных (К) (с использованием формулы Excel)
-      const cellAJ = row.getCell(36)
+      const cellAJ = row.getCell(colIdxAJ)
       cellAJ.value = {
-        formula: `IF(C${currentRow}="К", COUNTIF(D${currentRow}:AH${currentRow}, ">0"), "")`,
+        formula: `IF(C${currentRow}="К", COUNTIF(D${currentRow}:${colLetterAH}${currentRow}, ">0"), "")`,
         result: workerType === 'К' && workerDays > 0 ? workerDays : undefined
       }
-      cellAJ.font = { name: 'Arial', size: 10 }
+      cellAJ.font = { name: 'Times New Roman', size: 10 }
       cellAJ.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-      cellAJ.border = borderStyle
       cellAJ.numFmt = '0'
       if (workerType === 'К') {
         grandTotalTravelDays += workerDays
       }
 
       // Всего местных (М) (с использованием формулы Excel)
-      const cellAK = row.getCell(37)
+      const cellAK = row.getCell(colIdxAK)
       cellAK.value = {
-        formula: `IF(C${currentRow}="М", COUNTIF(D${currentRow}:AH${currentRow}, ">0"), "")`,
+        formula: `IF(C${currentRow}="М", COUNTIF(D${currentRow}:${colLetterAH}${currentRow}, ">0"), "")`,
         result: workerType === 'М' && workerDays > 0 ? workerDays : undefined
       }
-      cellAK.font = { name: 'Arial', size: 10 }
+      cellAK.font = { name: 'Times New Roman', size: 10 }
       cellAK.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-      cellAK.border = borderStyle
       cellAK.numFmt = '0'
       if (workerType === 'М') {
         grandTotalLocalDays += workerDays
@@ -440,23 +450,20 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     const footerRow = worksheet.getRow(currentRow)
     footerRow.height = 24
 
-    // Подписи и заливка для первых трех ячеек
-    const footerLabelCell = footerRow.getCell(2)
+    // Помещаем "Итого:" в последнюю ячейку дат (например, AH), выравниваем по правому краю
+    const footerLabelCell = footerRow.getCell(3 + daysInMonth)
     footerLabelCell.value = 'Итого:'
+    footerLabelCell.font = { name: 'Times New Roman', size: 10, bold: true }
+    footerLabelCell.alignment = { horizontal: 'right' as const, vertical: 'middle' as const }
     
+    // Заливаем первые три ячейки футера белым фоном
     for (let c = 1; c <= 3; c++) {
       const cell = footerRow.getCell(c)
-      cell.border = borderStyle
-      cell.font = { name: 'Arial', size: 10, bold: true }
+      cell.font = { name: 'Times New Roman', size: 10, bold: true }
       cell.fill = {
         type: 'pattern' as const,
         pattern: 'solid' as const,
-        fgColor: { argb: 'FFF2F2F2' }
-      }
-      if (c === 2) {
-        cell.alignment = { horizontal: 'right' as const, vertical: 'middle' as const }
-      } else {
-        cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+        fgColor: { argb: 'FFFFFFFF' }
       }
     }
 
@@ -466,70 +473,107 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       const cell = footerRow.getCell(colIndex)
       const weekend = isWeekend(date)
 
-      cell.value = ''
-      cell.font = { name: 'Arial', size: 10, bold: true }
-      cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-      cell.border = borderStyle
-
+      if (colIndex !== 3 + daysInMonth) {
+        cell.value = ''
+      }
+      cell.font = { name: 'Times New Roman', size: 10, bold: true }
+      if (colIndex !== 3 + daysInMonth) {
+        cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
+      }
       cell.fill = weekend
         ? { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFD9D9' } }
-        : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+        : { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFFFFF' } }
     })
 
     // Итоговая сумма часов (с использованием формулы Excel)
-    const footerHoursCell = footerRow.getCell(35)
+    const footerHoursCell = footerRow.getCell(colIdxAI)
     footerHoursCell.value = {
-      formula: `SUM(AI9:AI${currentRow - 1})`,
+      formula: `SUM(${colLetterAI}10:${colLetterAI}${currentRow - 1})`,
       result: grandTotalHours
     }
-    footerHoursCell.font = { name: 'Arial', size: 10, bold: true }
+    footerHoursCell.font = { name: 'Times New Roman', size: 10, bold: true }
     footerHoursCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-    footerHoursCell.border = borderStyle
-    footerHoursCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    footerHoursCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFFFFF' } }
     footerHoursCell.numFmt = '0.00'
 
     // Всего командировочных дней (с использованием формулы Excel)
-    const footerTravelDaysCell = footerRow.getCell(36)
+    const footerTravelDaysCell = footerRow.getCell(colIdxAJ)
     footerTravelDaysCell.value = {
-      formula: `SUM(AJ9:AJ${currentRow - 1})`,
+      formula: `SUM(${colLetterAJ}10:${colLetterAJ}${currentRow - 1})`,
       result: grandTotalTravelDays
     }
-    footerTravelDaysCell.font = { name: 'Arial', size: 10, bold: true }
+    footerTravelDaysCell.font = { name: 'Times New Roman', size: 10, bold: true }
     footerTravelDaysCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-    footerTravelDaysCell.border = borderStyle
-    footerTravelDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    footerTravelDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFFFFF' } }
     footerTravelDaysCell.numFmt = '0'
 
     // Всего местных дней (с использованием формулы Excel)
-    const footerLocalDaysCell = footerRow.getCell(37)
+    const footerLocalDaysCell = footerRow.getCell(colIdxAK)
     footerLocalDaysCell.value = {
-      formula: `SUM(AK9:AK${currentRow - 1})`,
+      formula: `SUM(${colLetterAK}10:${colLetterAK}${currentRow - 1})`,
       result: grandTotalLocalDays
     }
-    footerLocalDaysCell.font = { name: 'Arial', size: 10, bold: true }
+    footerLocalDaysCell.font = { name: 'Times New Roman', size: 10, bold: true }
     footerLocalDaysCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
-    footerLocalDaysCell.border = borderStyle
-    footerLocalDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFF2F2F2' } }
+    footerLocalDaysCell.fill = { type: 'pattern' as const, pattern: 'solid' as const, fgColor: { argb: 'FFFFFFFF' } }
     footerLocalDaysCell.numFmt = '0'
 
-    // 8. Легенда (К/М) и Цвета Объектов в подвале
+    // 8. ПРИМЕНЕНИЕ РАМОК К СЕТКЕ ТАБЛИЦЫ (Medium для границ, Thin для внутреннего содержимого)
+    const getBorderForCell = (r: number, c: number, startRow: number, endRow: number, totalCols: number) => {
+      const border: any = {
+        top: { style: 'thin' as const, color: { argb: 'FF000000' } },
+        bottom: { style: 'thin' as const, color: { argb: 'FF000000' } },
+        left: { style: 'thin' as const, color: { argb: 'FF000000' } },
+        right: { style: 'thin' as const, color: { argb: 'FF000000' } }
+      }
+
+      // Внешние рамки всей таблицы (medium)
+      if (r === startRow) border.top = { style: 'medium' as const, color: { argb: 'FF000000' } }
+      if (r === endRow) border.bottom = { style: 'medium' as const, color: { argb: 'FF000000' } }
+      if (c === 1) border.left = { style: 'medium' as const, color: { argb: 'FF000000' } }
+      if (c === totalCols) border.right = { style: 'medium' as const, color: { argb: 'FF000000' } }
+
+      // Разделитель после 3-го столбца (Комнад/Местный)
+      if (c === 3) border.right = { style: 'medium' as const, color: { argb: 'FF000000' } }
+      if (c === 4) border.left = { style: 'medium' as const, color: { argb: 'FF000000' } }
+
+      // Разделитель перед итоговыми столбцами
+      if (c === 3 + daysInMonth) border.right = { style: 'medium' as const, color: { argb: 'FF000000' } }
+      if (c === 4 + daysInMonth) border.left = { style: 'medium' as const, color: { argb: 'FF000000' } }
+
+      // Разделитель под шапкой таблицы (строка 9)
+      if (r === 9) border.bottom = { style: 'medium' as const, color: { argb: 'FF000000' } }
+      if (r === 10) border.top = { style: 'medium' as const, color: { argb: 'FF000000' } }
+
+      return border
+    }
+
+    const endRow = currentRow
+    for (let r = 8; r <= endRow; r++) {
+      for (let c = 1; c <= totalCols; c++) {
+        const cell = worksheet.getRow(r).getCell(c)
+        cell.border = getBorderForCell(r, c, 8, endRow, totalCols)
+      }
+    }
+
+    // 9. Легенда (К/М) и Цвета Объектов в подвале
     currentRow += 2
 
     const legendKRow = worksheet.getRow(currentRow)
     const legendKCell = legendKRow.getCell(2)
     legendKCell.value = 'К - командировочные'
-    legendKCell.font = { name: 'Arial', size: 9, italic: true }
+    legendKCell.font = { name: 'Times New Roman', size: 9, italic: true }
 
     const legendMRow = worksheet.getRow(currentRow + 1)
     const legendMCell = legendMRow.getCell(2)
     legendMCell.value = 'М - местные'
-    legendMCell.font = { name: 'Arial', size: 9, italic: true }
+    legendMCell.font = { name: 'Times New Roman', size: 9, italic: true }
 
     if (objectColors.size > 0) {
       let legendRowIdx = currentRow + 3
       const titleRow = worksheet.getRow(legendRowIdx)
       titleRow.getCell(2).value = 'Условные обозначения объектов:'
-      titleRow.getCell(2).font = { name: 'Arial', size: 10, bold: true }
+      titleRow.getCell(2).font = { name: 'Times New Roman', size: 10, bold: true }
       legendRowIdx++
 
       objectColors.forEach((color, objName) => {
@@ -542,12 +586,17 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
           pattern: 'solid' as const,
           fgColor: { argb: color }
         }
-        cCell.border = borderStyle
+        cCell.border = {
+          top: { style: 'thin' as const, color: { argb: 'FF000000' } },
+          bottom: { style: 'thin' as const, color: { argb: 'FF000000' } },
+          left: { style: 'thin' as const, color: { argb: 'FF000000' } },
+          right: { style: 'thin' as const, color: { argb: 'FF000000' } }
+        }
         cCell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
 
         const nCell = objRow.getCell(3)
         nCell.value = objName
-        nCell.font = { name: 'Arial', size: 9 }
+        nCell.font = { name: 'Times New Roman', size: 9 }
         nCell.alignment = { horizontal: 'left' as const, vertical: 'middle' as const }
 
         legendRowIdx++
