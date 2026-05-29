@@ -929,48 +929,119 @@ export default function SalaryPage() {
                   value={editTimeModal.entry.work_description || ''} 
                   onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, work_description: e.target.value}})}
                   placeholder="Например, Монтаж канатов..."
-                  style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                  list="modal-popular-works"
+                  style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', transition:'border-color 0.2s'}}
+                  onFocus={e => e.currentTarget.style.borderColor = 'var(--blue)'}
+                  onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
                 />
+                <datalist id="modal-popular-works">
+                  <option value="Монтаж канатов" />
+                  <option value="Вязка арматуры" />
+                  <option value="Установка опалубки" />
+                  <option value="Заливка бетона" />
+                  <option value="Демонтаж конструкций" />
+                  <option value="Подсобные работы" />
+                </datalist>
               </div>
 
-              <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
-                <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Начало</label>
-                  <input type="time" 
-                    value={editTimeModal.entry.start_time || ''} 
-                    onChange={e => {
-                      const newStart = e.target.value
-                      const newHours = calcHours(newStart, editTimeModal.entry.end_time || '', editTimeModal.entry.lunch_min || 0)
-                      setEditTimeModal({
-                        ...editTimeModal,
-                        entry: {
-                          ...editTimeModal.entry,
-                          start_time: newStart,
-                          hours_total: newHours
-                        }
-                      })
-                    }}
-                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
-                  />
+              <div>
+                <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12}}>
+                  <div>
+                    <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Начало</label>
+                    <input type="time" 
+                      value={editTimeModal.entry.start_time || ''} 
+                      onChange={e => {
+                        const newStart = e.target.value
+                        const newHours = calcHours(newStart, editTimeModal.entry.end_time || '', editTimeModal.entry.lunch_min || 0)
+                        setEditTimeModal({
+                          ...editTimeModal,
+                          entry: {
+                            ...editTimeModal.entry,
+                            start_time: newStart,
+                            hours_total: newHours
+                          }
+                        })
+                      }}
+                      style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', transition:'border-color 0.2s'}}
+                      onFocus={e => e.currentTarget.style.borderColor = 'var(--blue)'}
+                      onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                    />
+                  </div>
+                  <div>
+                    <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Конец</label>
+                    <input type="time" 
+                      value={editTimeModal.entry.end_time || ''} 
+                      onChange={e => {
+                        const newEnd = e.target.value
+                        const newHours = calcHours(editTimeModal.entry.start_time || '', newEnd, editTimeModal.entry.lunch_min || 0)
+                        setEditTimeModal({
+                          ...editTimeModal,
+                          entry: {
+                            ...editTimeModal.entry,
+                            end_time: newEnd,
+                            hours_total: newHours
+                          }
+                        })
+                      }}
+                      style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', transition:'border-color 0.2s'}}
+                      onFocus={e => e.currentTarget.style.borderColor = 'var(--blue)'}
+                      onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label style={{display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:6}}>Конец</label>
-                  <input type="time" 
-                    value={editTimeModal.entry.end_time || ''} 
-                    onChange={e => {
-                      const newEnd = e.target.value
-                      const newHours = calcHours(editTimeModal.entry.start_time || '', newEnd, editTimeModal.entry.lunch_min || 0)
-                      setEditTimeModal({
-                        ...editTimeModal,
-                        entry: {
-                          ...editTimeModal.entry,
-                          end_time: newEnd,
-                          hours_total: newHours
-                        }
-                      })
-                    }}
-                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
-                  />
+                
+                {/* Шаблоны времени для быстрой вставки (очень удобно на мобильных!) */}
+                <div style={{marginTop:8}}>
+                  <div style={{fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', marginBottom:4}}>Быстрый выбор смены</div>
+                  <div style={{display:'flex', flexWrap:'wrap', gap:6}}>
+                    {[
+                      { label: '8:00 - 17:00 (9ч)', start: '08:00', end: '17:00', lunch: 0, hours: 9.0 },
+                      { label: '8:00 - 20:00 (12ч)', start: '08:00', end: '20:00', lunch: 0, hours: 12.0 },
+                      { label: '7:30 - 17:00 (9.5ч)', start: '07:30', end: '17:00', lunch: 0, hours: 9.5 },
+                      { label: '7:30 - 18:10 (10.67ч)', start: '07:30', end: '18:10', lunch: 0, hours: 10.67 },
+                      { label: '7:30 - 19:30 (12ч)', start: '07:30', end: '19:30', lunch: 0, hours: 12.0 },
+                    ].map(preset => (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          setEditTimeModal({
+                            ...editTimeModal,
+                            entry: {
+                              ...editTimeModal.entry,
+                              start_time: preset.start,
+                              end_time: preset.end,
+                              lunch_min: preset.lunch,
+                              hours_total: preset.hours
+                            }
+                          });
+                        }}
+                        style={{
+                          padding: '6px 10px',
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background: 'rgba(255, 255, 255, 0.03)',
+                          border: '1px solid var(--border-light)',
+                          borderRadius: 20,
+                          color: 'var(--text-muted)',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={e => {
+                          e.currentTarget.style.borderColor = 'var(--blue)';
+                          e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+                          e.currentTarget.style.color = '#fff';
+                        }}
+                        onMouseLeave={e => {
+                          e.currentTarget.style.borderColor = 'var(--border-light)';
+                          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.03)';
+                          e.currentTarget.style.color = 'var(--text-muted)';
+                        }}
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -991,7 +1062,9 @@ export default function SalaryPage() {
                         }
                       })
                     }}
-                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', transition:'border-color 0.2s'}}
+                    onFocus={e => e.currentTarget.style.borderColor = 'var(--blue)'}
+                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
                   />
                 </div>
                 <div>
@@ -1001,7 +1074,9 @@ export default function SalaryPage() {
                   <input type="number" step="0.5"
                     value={editTimeModal.entry.hours_total === undefined ? '' : editTimeModal.entry.hours_total} 
                     onChange={e => setEditTimeModal({...editTimeModal, entry: {...editTimeModal.entry, hours_total: parseFloat(e.target.value)||0}})}
-                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none'}}
+                    style={{width:'100%', padding:12, borderRadius:10, background:'var(--bg-elevated)', border:'1px solid var(--border)', color:'#fff', outline:'none', transition:'border-color 0.2s'}}
+                    onFocus={e => e.currentTarget.style.borderColor = 'var(--blue)'}
+                    onBlur={e => e.currentTarget.style.borderColor = 'var(--border)'}
                   />
                 </div>
               </div>
