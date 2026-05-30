@@ -113,7 +113,7 @@ export default function Modal({
               fontSize: 14
             }}
           >
-            {cancelText}
+            {showConfirm ? cancelText : (cancelText === 'Отмена' ? 'ОК' : cancelText)}
           </button>
           
           {showConfirm && (
