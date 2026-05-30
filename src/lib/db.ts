@@ -245,6 +245,10 @@ function initDb() {
   } catch (e) {}
 
   try {
+    db.prepare('ALTER TABLE workers ADD COLUMN is_name_locked INTEGER DEFAULT 0').run()
+  } catch (e) {}
+
+  try {
     db.prepare('ALTER TABLE workers ADD COLUMN is_approved INTEGER DEFAULT 1').run()
   } catch (e) {}
 

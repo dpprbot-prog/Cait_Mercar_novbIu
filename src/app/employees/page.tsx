@@ -341,7 +341,7 @@ export default function EmployeesPage() {
           <div style={{background:'var(--bg-surface)', padding:24, borderRadius:20, width:'100%', maxWidth:500, border:'1px solid var(--border)', maxHeight:'90vh', overflowY:'auto'}}>
             <h2 style={{color:'#fff', marginBottom:24, fontSize:20}}>Редактирование сотрудника</h2>
             
-            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:12}}>
+            <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:12}}>
               <div>
                 <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ФАМИЛИЯ</label>
                 <input value={editingWorker.last_name || ''} onChange={e=>setEditingWorker({...editingWorker, last_name:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
@@ -350,12 +350,16 @@ export default function EmployeesPage() {
                 <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ИМЯ</label>
                 <input value={editingWorker.first_name || ''} onChange={e=>setEditingWorker({...editingWorker, first_name:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
               </div>
+              <div>
+                <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ОТЧЕСТВО</label>
+                <input value={editingWorker.patronymic || ''} onChange={e=>setEditingWorker({...editingWorker, patronymic:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
+              </div>
             </div>
 
             <div style={{marginBottom:12}}>
               <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>РОЛЬ</label>
               <select value={editingWorker.role || ''} onChange={e=>setEditingWorker({...editingWorker, role:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}>
-                {roles.map(r => <option key={r} value={r}>{r}</option>)}
+                {['Админ', 'Мастер', 'Бригадир', 'Склад', 'Водитель', 'Рабочий'].map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
 
@@ -402,9 +406,24 @@ export default function EmployeesPage() {
               </div>
             </div>
 
-            <div style={{marginBottom:24}}>
+            <div style={{marginBottom:16}}>
               <label style={{fontSize:11, opacity:0.5, display:'block', marginBottom:4}}>ЛОГИН (@)</label>
               <input value={editingWorker.login || ''} onChange={e=>setEditingWorker({...editingWorker, login:e.target.value})} style={{width:'100%', background:'rgba(255,255,255,0.05)', border:'1px solid var(--border)', padding:10, borderRadius:10, color:'#fff'}}/>
+            </div>
+
+            <div style={{marginBottom:24, display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,0.02)', padding:12, borderRadius:12, border:'1px solid var(--border)'}}>
+              <div>
+                <strong style={{fontSize:13, color:'#fff', display:'block'}}>Зафиксировать ФИО</strong>
+                <span style={{fontSize:10, opacity:0.5}}>Запретить рабочему менять свои ФИО</span>
+              </div>
+              <label className="switch">
+                <input 
+                  type="checkbox" 
+                  checked={!!editingWorker.is_name_locked} 
+                  onChange={e=>setEditingWorker({...editingWorker, is_name_locked: e.target.checked ? 1 : 0})}
+                />
+                <span className="slider"></span>
+              </label>
             </div>
 
             <div style={{display:'flex', gap:12}}>

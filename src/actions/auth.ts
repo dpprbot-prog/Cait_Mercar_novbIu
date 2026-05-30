@@ -23,6 +23,7 @@ export interface WorkerProfile {
   shoe_size: string | null
   is_blocked: number
   is_approved: number
+  is_name_locked: number
 }
 
 const SESSION_COOKIE = 'merkare_session_3d'

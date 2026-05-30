@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Clock, ShoppingCart, DollarSign,
-  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit, Settings, History, HandCoins
+  Shield, Wrench, Building2, Users, Menu, X, Bell, LogOut, Edit, Settings, History, HandCoins, Lock
 } from 'lucide-react'
 import { 
   getNotifications, 
@@ -15,7 +15,7 @@ import {
   approvePendingTimeEntry,
   rejectPendingTimeEntry
 } from '@/actions/notifications'
-import { updateWorkerAdmin, deployFromServer } from '@/actions/admin'
+import { updateWorkerAdmin, deployFromServer, updateProfileSelf } from '@/actions/admin'
 import Modal from './Modal'
 
 const NAV = [
@@ -60,28 +60,43 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const [showProfile, setShowProfile] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
-  const [notifications, setNotifications] = useState<any[]>([])
-  const [notifSettings, setNotifSettings] = useState<any>(null)
-  const [modal, setModal] = useState<{isOpen:boolean, title:string, message:string, type:'info'|'success'|'danger'|'warning'}>({
+  const [deployState, setDeployState] = useState<'idle' | 'deploying' | 'success' | 'failed'>('idle')
+  const [notifSettings, setNotifSettings] = useState<any>({
+    notify_siz: 1,
+    notify_supply: 1,
+    notify_admin_tasks: 1
+  })
+
+  // Modal alert
+  const [modal, setModal] = useState<{
+    isOpen: boolean,
+    title: string,
+    message: string,
+    type: 'danger' | 'info' | 'success' | 'warning'
+  }>({
     isOpen: false,
     title: '',
     message: '',
     type: 'info'
   })
-  
-  const [deployState, setDeployState] = useState<'idle' | 'deploying' | 'success'>('idle')
 
   useEffect(() => {
-    const loadNotifs = async () => {
-      const [n, s] = await Promise.all([
-        getNotifications(),
-        getNotificationSettings()
-      ])
-      setNotifications(n)
-      setNotifSettings(s)
+    if (user) {
+      getNotificationSettings().then(setNotifSettings)
     }
-    loadNotifs()
-  }, [])
+  }, [user])
+
+  const [notifications, setNotifications] = useState<any[]>([])
+  useEffect(() => {
+    if (!user) return
+    getNotifications().then(setNotifications)
+    
+    // Получение каждую минуту
+    const t = setInterval(() => {
+      getNotifications().then(setNotifications)
+    }, 60000)
+    return () => clearInterval(t)
+  }, [user])
 
   const unreadCount = notifications.filter(n => !n.is_read).length
 
@@ -91,6 +106,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   const handleMarkAllRead = async () => {
+    if (!user) return
     await markAllAsRead()
     setNotifications(prev => prev.map(n => ({ ...n, is_read: 1 })))
   }
@@ -103,9 +119,25 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     setNotifSettings(newSettings)
     await updateNotificationSettings(newSettings)
   }
+
   const [pH, setPH] = useState(user?.height ? String(user.height) : '')
   const [pC, setPC] = useState(user?.clothing_size || '')
   const [pS, setPS] = useState(user?.shoe_size ? String(user.shoe_size) : '')
+
+  const [pLastName, setPLastName] = useState(user?.last_name || '')
+  const [pFirstName, setPFirstName] = useState(user?.first_name || '')
+  const [pPatronymic, setPPatronymic] = useState(user?.patronymic || '')
+
+  useEffect(() => {
+    if (user) {
+      setPLastName(user.last_name || '')
+      setPFirstName(user.first_name || '')
+      setPPatronymic(user.patronymic || '')
+      setPH(user.height ? String(user.height) : '')
+      setPC(user.clothing_size || '')
+      setPS(user.shoe_size ? String(user.shoe_size) : '')
+    }
+  }, [showProfile, user])
 
   // ── ROUTE PROTECTION ──
   useEffect(() => {
@@ -122,16 +154,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleUpdateProfile = async () => {
     if (!user) return
-    const res = await updateWorkerAdmin(user.id, {
-      ...user,
-      height: Number(pH),
+    const res = await updateProfileSelf({
+      last_name: pLastName,
+      first_name: pFirstName,
+      patronymic: pPatronymic,
+      height: pH ? Number(pH) : null,
       clothing_size: pC,
-      shoe_size: pS
-    } as any)
+      shoe_size: pS || null
+    })
     
     if (res.success) {
       setModal({ isOpen: true, title: 'Успех', message: 'Профиль успешно обновлен', type: 'success' })
-      setTimeout(() => setShowProfile(false), 1500)
+      setTimeout(() => {
+        setShowProfile(false)
+        window.location.reload()
+      }, 1500)
     } else {
       setModal({ isOpen: true, title: 'Ошибка', message: res.error || 'Не удалось сохранить изменения', type: 'danger' })
     }
@@ -221,6 +258,87 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <h2 style={{ color: '#fff', marginBottom: 20, fontSize: 20 }}>Ваш профиль</h2>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>ФАМИЛИЯ</label>
+                  {user.is_name_locked === 1 && (
+                    <span style={{ fontSize: 10, color: '#f87171', display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(248,113,113,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                      <Lock size={10} /> ФИО зафиксировано
+                    </span>
+                  )}
+                </div>
+                <input 
+                  value={pLastName} 
+                  onChange={e => setPLastName(e.target.value)}
+                  disabled={user.is_name_locked === 1}
+                  placeholder="Фамилия"
+                  style={{ 
+                    width: '100%', 
+                    background: user.is_name_locked === 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.06)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: 8, 
+                    padding: 12, 
+                    color: user.is_name_locked === 1 ? 'rgba(255,255,255,0.4)' : '#fff', 
+                    outline: 'none',
+                    cursor: user.is_name_locked === 1 ? 'not-allowed' : 'text'
+                  }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>ИМЯ</label>
+                  {user.is_name_locked === 1 && (
+                    <span style={{ fontSize: 10, color: '#f87171', display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(248,113,113,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                      <Lock size={10} /> ФИО зафиксировано
+                    </span>
+                  )}
+                </div>
+                <input 
+                  value={pFirstName} 
+                  onChange={e => setPFirstName(e.target.value)}
+                  disabled={user.is_name_locked === 1}
+                  placeholder="Имя"
+                  style={{ 
+                    width: '100%', 
+                    background: user.is_name_locked === 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.06)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: 8, 
+                    padding: 12, 
+                    color: user.is_name_locked === 1 ? 'rgba(255,255,255,0.4)' : '#fff', 
+                    outline: 'none',
+                    cursor: user.is_name_locked === 1 ? 'not-allowed' : 'text'
+                  }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)' }}>ОТЧЕСТВО</label>
+                  {user.is_name_locked === 1 && (
+                    <span style={{ fontSize: 10, color: '#f87171', display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(248,113,113,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                      <Lock size={10} /> ФИО зафиксировано
+                    </span>
+                  )}
+                </div>
+                <input 
+                  value={pPatronymic} 
+                  onChange={e => setPPatronymic(e.target.value)}
+                  disabled={user.is_name_locked === 1}
+                  placeholder="Отчество"
+                  style={{ 
+                    width: '100%', 
+                    background: user.is_name_locked === 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.06)', 
+                    border: '1px solid var(--border)', 
+                    borderRadius: 8, 
+                    padding: 12, 
+                    color: user.is_name_locked === 1 ? 'rgba(255,255,255,0.4)' : '#fff', 
+                    outline: 'none',
+                    cursor: user.is_name_locked === 1 ? 'not-allowed' : 'text'
+                  }}
+                />
+              </div>
+
               <div>
                 <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', marginBottom: 6 }}>РОСТ (СМ)</label>
                 <input 

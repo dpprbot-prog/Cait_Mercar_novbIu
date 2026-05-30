@@ -24,6 +24,7 @@ export async function updateWorkerAdmin(workerId: string, data: {
   clothing_size?: string | null,
   shoe_size?: string | null,
   is_blocked?: number,
+  is_name_locked?: number,
   passwordStr?: string
 }) {
   try {
@@ -35,6 +36,7 @@ export async function updateWorkerAdmin(workerId: string, data: {
       UPDATE workers 
       SET login = ?, last_name = ?, first_name = ?, patronymic = ?, name = ?, role = ?, brigade_id = ?, 
           height = ?, clothing_size = ?, shoe_size = ?, is_blocked = COALESCE(?, is_blocked),
+          is_name_locked = COALESCE(?, is_name_locked),
           password_hash = COALESCE(?, password_hash)
       WHERE id = ?
     `).run(
@@ -49,6 +51,7 @@ export async function updateWorkerAdmin(workerId: string, data: {
       data.clothing_size || null, 
       data.shoe_size || null,
       data.is_blocked !== undefined ? data.is_blocked : null,
+      data.is_name_locked !== undefined ? data.is_name_locked : null,
       data.passwordStr ? await hashPassword(data.passwordStr) : null, 
       workerId
     )
@@ -59,7 +62,7 @@ export async function updateWorkerAdmin(workerId: string, data: {
       action_type: 'update',
       entity_type: 'worker',
       entity_id: workerId,
-      details: `Обновление данных сотрудника: ${data.last_name} ${data.first_name}`
+      details: `Обновление данных сотрудника: ${data.last_name} ${data.first_name} (Зафиксирован: ${data.is_name_locked ? 'Да' : 'Нет'})`
     })
     
     revalidatePath('/employees')
@@ -67,6 +70,70 @@ export async function updateWorkerAdmin(workerId: string, data: {
   } catch (error: any) {
     console.error('Update worker error:', error)
     return { success: false, error: error.message || 'Ошибка обновления' }
+  }
+}
+
+export async function updateProfileSelf(data: {
+  last_name: string,
+  first_name: string,
+  patronymic?: string,
+  height?: number | null,
+  clothing_size?: string | null,
+  shoe_size?: string | null
+}) {
+  try {
+    const user = await getCurrentUser()
+    if (!user) throw new Error('Пользователь не авторизован')
+
+    // Получаем текущие данные из БД для проверки блокировки ФИО
+    const currentWorker = db.prepare('SELECT last_name, first_name, patronymic, is_name_locked, name FROM workers WHERE id = ?').get(user.id) as any
+    if (!currentWorker) throw new Error('Сотрудник не найден')
+
+    let lastName = data.last_name.trim()
+    let firstName = data.first_name.trim()
+    let patronymic = (data.patronymic || '').trim()
+
+    // Если ФИО зафиксировано админом, принудительно используем старое ФИО из базы данных
+    if (currentWorker.is_name_locked === 1) {
+      lastName = currentWorker.last_name
+      firstName = currentWorker.first_name
+      patronymic = currentWorker.patronymic
+    }
+
+    if (!lastName || !firstName) {
+      throw new Error('Фамилия и Имя обязательны для заполнения')
+    }
+
+    const name = `${lastName} ${firstName[0]}.`
+
+    db.prepare(`
+      UPDATE workers 
+      SET last_name = ?, first_name = ?, patronymic = ?, name = ?, 
+          height = ?, clothing_size = ?, shoe_size = ?
+      WHERE id = ?
+    `).run(
+      lastName,
+      firstName,
+      patronymic,
+      name,
+      data.height || null,
+      data.clothing_size || null,
+      data.shoe_size || null,
+      user.id
+    )
+    
+    await logAction({
+      user_name: name,
+      action_type: 'update',
+      entity_type: 'worker',
+      entity_id: user.id,
+      details: `Сотрудник самостоятельно обновил свой профиль${currentWorker.is_name_locked === 1 ? ' (ФИО зафиксировано)' : ''}`
+    })
+    
+    return { success: true }
+  } catch (error: any) {
+    console.error('Self profile update error:', error)
+    return { success: false, error: error.message || 'Ошибка обновления профиля' }
   }
 }
 
