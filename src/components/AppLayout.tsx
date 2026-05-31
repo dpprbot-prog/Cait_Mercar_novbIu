@@ -15,7 +15,7 @@ import {
   approvePendingTimeEntry,
   rejectPendingTimeEntry
 } from '@/actions/notifications'
-import { updateWorkerAdmin, deployFromServer, updateProfileSelf } from '@/actions/admin'
+import { updateWorkerAdmin, deployFromServer, updateProfileSelf, getDeployLog } from '@/actions/admin'
 import Modal from './Modal'
 
 const NAV = [
@@ -432,11 +432,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   </h4>
                   <button 
                     onClick={async () => {
-                      if (window.confirm('Вы уверены, что хотите обновить код с GitHub и перезапустить сервер? Процесс займет около 15 секунд.')) {
+                      if (window.confirm('Вы уверены, что хотите обновить код с GitHub и перезапустить сервер? Это займет около 15 секунд.')) {
                         setDeployState('deploying')
                         const res = await deployFromServer()
                         if (res.success) {
                           setDeployState('success')
+                          alert(res.message || 'Обновление запущено!')
                           setTimeout(() => window.location.reload(), 15000)
                         } else {
                           setDeployState('idle')
@@ -452,6 +453,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     }}
                   >
                     {deployState === 'deploying' ? 'ОБНОВЛЕНИЕ И СБОРКА...' : deployState === 'success' ? 'ПЕРЕЗАПУСК САЙТА (15 С)...' : 'СКАЧАТЬ С GITHUB И ОБНОВИТЬ'}
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      const res = await getDeployLog()
+                      if (res.success) {
+                        alert(res.log)
+                      } else {
+                        alert('Ошибка чтения логов: ' + res.error)
+                      }
+                    }}
+                    style={{
+                      width: '100%', marginTop: 8, background: 'transparent', color: 'var(--text-muted)', border: '1px dashed var(--border)',
+                      borderRadius: 10, padding: 10, fontSize: 11, fontWeight: 800, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                    }}
+                  >
+                    🔍 ПОСМОТРЕТЬ ЛОГ СБОРКИ
                   </button>
                 </div>
               )}

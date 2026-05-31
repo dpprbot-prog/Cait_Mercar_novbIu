@@ -4,7 +4,7 @@ import db from '@/lib/db'
 import { revalidatePath } from 'next/cache'
 import { getCurrentUser, hashPassword } from './auth'
 import { logAction } from './history'
-import { exec } from 'child_process'
+import { exec, execSync } from 'child_process'
 
 async function checkAdmin() {
   const user = await getCurrentUser()
@@ -449,14 +449,50 @@ export async function deployFromServer() {
   try {
     await checkAdmin()
     
-    // Выполняем асинхронное обновление на сервере
-    exec('sleep 2 && git pull && npm run build && pm2 restart mercare-3d', {
-      cwd: '/var/www/mercare/Mercare3D/merkare-app'
-    })
+    const cwd = '/var/www/mercare/Mercare3D/merkare-app'
     
-    return { success: true }
+    // 1. Выполняем git fetch и git reset --hard, чтобы гарантированно стереть любые локальные изменения на сервере
+    let gitOutput = ''
+    try {
+      gitOutput = execSync('git fetch --all && git reset --hard origin/main', { cwd, encoding: 'utf8' })
+    } catch (gitError: any) {
+      console.error('Git deployment error:', gitError)
+      return {
+        success: false,
+        error: `Ошибка обновления кода с GitHub: ${gitError.stderr || gitError.message}`
+      }
+    }
+    
+    // 2. Проверяем состояние памяти на сервере для диагностики OOM
+    let memOutput = ''
+    try {
+      memOutput = execSync('free -m', { encoding: 'utf8' })
+    } catch (e) {}
+
+    // 3. Запускаем сборку и перезапуск в фоне с записью логов в build.log
+    exec('npm run build > build.log 2>&1 && pm2 restart mercare-3d >> build.log 2>&1', { cwd })
+    
+    return { 
+      success: true,
+      message: `Код успешно скачан с GitHub!\n\nСтатус Git:\n${gitOutput}\n\nРесурсы сервера:\n${memOutput}\n\nСервер начал фоновую сборку. Сайт обновится через 2 минуты.` 
+    }
   } catch (error: any) {
     console.error('Deploy error:', error)
     return { success: false, error: error.message || 'Ошибка запуска обновления' }
+  }
+}
+
+export async function getDeployLog() {
+  try {
+    await checkAdmin()
+    const fs = require('fs')
+    const path = require('path')
+    const logPath = '/var/www/mercare/Mercare3D/merkare-app/build.log'
+    if (fs.existsSync(logPath)) {
+      return { success: true, log: fs.readFileSync(logPath, 'utf8') }
+    }
+    return { success: true, log: 'Лог сборки еще не создан.' }
+  } catch (error: any) {
+    return { success: false, error: error.message }
   }
 }
