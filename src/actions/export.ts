@@ -450,10 +450,10 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
     const footerRow = worksheet.getRow(currentRow)
     footerRow.height = 24
 
-    // Помещаем "Итого:" в последнюю ячейку дат (например, AH), выравниваем по правому краю
+    // Помещаем "того:" в последнюю ячейку дат (например, AH), выравниваем по правому краю
     const footerLabelCell = footerRow.getCell(3 + daysInMonth)
-    footerLabelCell.value = 'Итого:'
-    footerLabelCell.font = { name: 'Times New Roman', size: 10, bold: true }
+    footerLabelCell.value = 'того:'
+    footerLabelCell.font = { name: 'Times New Roman', size: 10, bold: true, color: { argb: 'FFFF0000' } }
     footerLabelCell.alignment = { horizontal: 'right' as const, vertical: 'middle' as const }
     
     // Заливаем первые три ячейки футера белым фоном
@@ -476,7 +476,13 @@ export async function exportSalaryToTemplate(month: number, year: number, brigad
       if (colIndex !== 3 + daysInMonth) {
         cell.value = ''
       }
-      cell.font = { name: 'Times New Roman', size: 10, bold: true }
+      
+      if (colIndex === 3 + daysInMonth) {
+        cell.font = { name: 'Times New Roman', size: 10, bold: true, color: { argb: 'FFFF0000' } }
+      } else {
+        cell.font = { name: 'Times New Roman', size: 10, bold: true }
+      }
+      
       if (colIndex !== 3 + daysInMonth) {
         cell.alignment = { horizontal: 'center' as const, vertical: 'middle' as const }
       }
