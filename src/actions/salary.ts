@@ -253,16 +253,19 @@ export async function getMonthlyTimesheet(month: number, year: number, brigadeId
     const wId = e.worker_id.toString()
     if (dataMap[wId]) {
       const day = parseInt(e.date.split('.')[0], 10)
+      const objName = e.object_name || 'Не указан'
       if (dataMap[wId].days[day]) {
         dataMap[wId].days[day].hours += e.hours_total
-        dataMap[wId].days[day].object += `, ${e.object_name}`
-        // Сохраняем список всех записей за день для редактирования
+        const currentObjects = dataMap[wId].days[day].object.split(', ')
+        if (!currentObjects.includes(objName)) {
+          dataMap[wId].days[day].object += `, ${objName}`
+        }
         if (!dataMap[wId].days[day].entries) dataMap[wId].days[day].entries = []
         dataMap[wId].days[day].entries.push(e)
       } else {
         dataMap[wId].days[day] = {
           hours: e.hours_total,
-          object: e.object_name,
+          object: objName,
           entries: [e]
         }
       }
