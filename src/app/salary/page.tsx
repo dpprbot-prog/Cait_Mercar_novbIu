@@ -62,6 +62,37 @@ export default function SalaryPage() {
   const [viewMode, setViewMode] = useState<'list' | 'timesheet'>('timesheet')
   const [timesheetData, setTimesheetData] = useState<any>(null)
 
+  // Получаем список уникальных названий объектов, которые есть в отображаемом табеле
+  const activeObjects = useMemo(() => {
+    if (!timesheetData || !Array.isArray(timesheetData)) return []
+    const objs = new Set<string>()
+    timesheetData.forEach((item: any) => {
+      if (item && item.days) {
+        Object.values(item.days).forEach((day: any) => {
+          if (day && day.object) {
+            objs.add(day.object)
+          }
+        })
+      }
+    })
+    return Array.from(objs).sort()
+  }, [timesheetData])
+
+  const getObjectStyles = (objectName: string) => {
+    if (!objectName) return { bg: 'rgba(255,255,255,0.06)', text: '#fff' }
+    const index = activeObjects.indexOf(objectName)
+    const colors = [
+      { bg: 'rgba(16, 185, 129, 0.15)', text: '#34d399' }, // Зеленый
+      { bg: 'rgba(245, 158, 11, 0.15)', text: '#fbbf24' },  // Желтый
+      { bg: 'rgba(6, 182, 212, 0.15)', text: '#22d3ee' },   // Бирюзовый
+      { bg: 'rgba(217, 70, 239, 0.15)', text: '#f472b6' },  // Сиреневый
+      { bg: 'rgba(132, 204, 22, 0.15)', text: '#a3e635' },  // Салатовый
+      { bg: 'rgba(244, 63, 94, 0.15)', text: '#fb7185' },   // Красный
+      { bg: 'rgba(99, 102, 241, 0.15)', text: '#818cf8' },  // Индиго
+    ]
+    return colors[index % colors.length] || { bg: 'rgba(255,255,255,0.06)', text: '#fff' }
+  }
+
   const [bulkObject, setBulkObject] = useState('')
   const [bulkStartDate, setBulkStartDate] = useState('')
   const [bulkEndDate, setBulkEndDate] = useState('')
@@ -796,7 +827,6 @@ export default function SalaryPage() {
                                       date: dayData.entries[0].date
                                     })
                                   } else {
-                                    // Создаем новую запись для добавления времени
                                     setEditTimeModal({
                                       entry: {
                                         worker_id: item.worker.id.toString(),
@@ -820,13 +850,13 @@ export default function SalaryPage() {
                                   borderLeft: isTodayCell ? '1px solid rgba(59, 130, 246, 0.3)' : '1px solid rgba(255,255,255,0.05)', 
                                   borderRight: isTodayCell ? '1px solid rgba(59, 130, 246, 0.3)' : 'none',
                                   background: dayData 
-                                    ? (isTodayCell ? 'rgba(59, 130, 246, 0.18)' : 'rgba(59, 130, 246, 0.08)') 
+                                    ? (isTodayCell ? getObjectStyles(dayData.object).bg.replace('0.15', '0.28') : getObjectStyles(dayData.object).bg) 
                                     : (isTodayCell ? 'rgba(59, 130, 246, 0.05)' : (isWeekendCell ? 'rgba(239, 68, 68, 0.03)' : 'transparent')),
                                   boxShadow: isTodayCell ? 'inset 0 0 6px rgba(59, 130, 246, 0.2)' : 'none',
                                   cursor: 'pointer'
                                 }}>
                                 {dayData ? (
-                                  <div style={{fontWeight:800, color: dayData.hours >= 10 ? 'var(--orange)' : 'var(--blue)', fontSize:13}}>
+                                  <div style={{fontWeight:800, color: getObjectStyles(dayData.object).text, fontSize:13}}>
                                     {decimalToHm(dayData.hours)}
                                   </div>
                                 ) : (
@@ -844,6 +874,43 @@ export default function SalaryPage() {
                   </tbody>
                 </table>
               </div>
+
+              {/* Легенда объектов (только активные для текущего табеля) */}
+              {activeObjects.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: 12,
+                  padding: '16px 20px',
+                  borderTop: '1px solid var(--border)',
+                  background: 'rgba(255,255,255,0.01)',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: 4 }}>
+                    Объекты в табеле:
+                  </span>
+                  {activeObjects.map(obj => {
+                    const style = getObjectStyles(obj)
+                    return (
+                      <div 
+                        key={obj} 
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: style.bg,
+                          padding: '4px 10px',
+                          borderRadius: 20,
+                          border: `1px solid ${style.text}33`
+                        }}
+                      >
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: style.text }} />
+                        <span style={{ fontSize: 12, color: style.text, fontWeight: 600 }}>{obj}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 
