@@ -723,16 +723,22 @@ export async function exportWorkJournalExcel(data: {
     })
 
     filtered.forEach((e, idx) => {
-      let elapsedHours = e.hours_total || 0
+      let hours = 0
+      let minutes = 0
       if (e.start_time && e.end_time) {
         const [hStart, mStart] = e.start_time.split(':').map(Number)
         const [hEnd, mEnd] = e.end_time.split(':').map(Number)
         const diffMin = (hEnd * 60 + mEnd) - (hStart * 60 + mStart)
         if (diffMin > 0) {
-          elapsedHours = diffMin / 60
+          hours = Math.floor(diffMin / 60)
+          minutes = diffMin % 60
         }
+      } else if (e.hours_total) {
+        const totalMinutes = Math.round(e.hours_total * 60)
+        hours = Math.floor(totalMinutes / 60)
+        minutes = totalMinutes % 60
       }
-      const roundedHours = Math.round(elapsedHours * 100) / 100
+      const roundedHours = hours + (minutes / 100)
       const periodStr = e.start_time && e.end_time ? `${e.start_time} - ${e.end_time}` : ''
 
       const lastName = e.last_name || ''
@@ -759,6 +765,9 @@ export async function exportWorkJournalExcel(data: {
           cell.alignment = { horizontal: 'left', vertical: 'middle', wrapText: true }
         } else {
           cell.alignment = { horizontal: 'center', vertical: 'middle' }
+        }
+        if (colIdx === 6) {
+          cell.numFmt = '0.00'
         }
         cell.border = {
           top: { style: 'thin', color: { argb: 'FF000000' } },
