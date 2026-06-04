@@ -417,7 +417,6 @@ export default function TabelPage() {
                 placeholder="Поиск объекта..." 
                 value={objectSearch}
                 onChange={e => setObjectSearch(e.target.value)}
-                autoFocus
               />
             </div>
             <div className="objects-list-scroll">
@@ -459,7 +458,6 @@ export default function TabelPage() {
                 placeholder="Поиск бригады..." 
                 value={brigadeSearch}
                 onChange={e => setBrigadeSearch(e.target.value)}
-                autoFocus
               />
             </div>
             <div className="objects-list-scroll">
